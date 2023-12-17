@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "dossier",
+    "dossier-core",
+    "dossier-ts",
+]
+
