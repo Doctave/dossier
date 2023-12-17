@@ -9,6 +9,7 @@ edition = "2021"
 dossier-core = { path="../dossier-core" }
 tree-sitter = "0.20.10"
 tree-sitter-typescript = "0.20.3"
+tree-sitter-jsdoc = { git = "https://github.com/tree-sitter/tree-sitter-jsdoc.git" }
 
 [build-dependencies]
 cc="*"

@@ -1,7 +1,6 @@
 use dossier_core::Result;
-use tree_sitter::Parser as TParser;
+use tree_sitter::{Parser as TParser, Query, QueryCursor};
 
-use std::collections::VecDeque;
 use std::path::Path;
 
 pub struct Parser {}
@@ -16,48 +15,24 @@ impl Parser {
             .set_language(tree_sitter_typescript::language_typescript())
             .expect("Error loading Rust grammar");
 
-        let parsed = parser.parse(code.clone(), None).unwrap();
-        let mut cursor = parsed.walk();
+        let tree = parser.parse(code.clone(), None).unwrap();
 
-        let mut level: usize = 0;
+        let query = Query::new(
+            tree_sitter_typescript::language_typescript(),
+            "((comment)* @class_doc .(export_statement (class_declaration name: (type_identifier) @name body: (class_body) @body )))",
+        ).unwrap();
 
-        println!("{}", code);
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.matches(&query, tree.root_node(), code.as_bytes());
 
-        println!("------------------------------------------");
+        let class_doc_index = query.capture_index_for_name("class_doc").unwrap();
+        let class_name_index = query.capture_index_for_name("name").unwrap();
 
-        let mut reached_root = false;
+        println!("Classes:");
 
-        while !reached_root {
-            if cursor.node().is_named() {
-                println!(
-                    "{}{} | {:?}",
-                    "  ".repeat(level),
-                    cursor.node().kind(),
-                    &cursor.node().utf8_text(code.as_bytes()).unwrap()
-                );
-            }
-
-            if cursor.goto_first_child() {
-                level += 1;
-                continue;
-            }
-
-            if cursor.goto_next_sibling() {
-                continue;
-            }
-
-            let mut retracing = true;
-            while retracing {
-                if !cursor.goto_parent() {
-                    retracing = false;
-                    reached_root = true;
-                }
-
-                if cursor.goto_next_sibling() {
-                    level -= 1;
-                    retracing = false;
-                }
-            }
+        for m in matches {
+            println!("docs: {:?}", m.captures.iter().find(|c| c.index == class_doc_index).unwrap().node.utf8_text(code.as_bytes()).unwrap());
+            println!("class: {:?}", m.captures.iter().find(|c| c.index == class_name_index).unwrap().node.utf8_text(code.as_bytes()).unwrap());
         }
 
         Ok(())

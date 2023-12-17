@@ -8,10 +8,13 @@ fn main() {
 
     for file in files {
         match file.extension().and_then(|s| s.to_str()) {
-            Some("ts") => {
-                let result = dossier_ts::Parser::parse(file);
-                println!("{:#?}", result);
-            }
+            Some("ts") => match dossier_ts::Parser::parse(file) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprint!("Error parsing docs");
+                    std::process::exit(1);
+                }
+            },
             Some(unknown) => {
                 println!("Unsupported language `{}`", unknown);
                 std::process::exit(1);
