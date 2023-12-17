@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
+use serde::Serialize;
 
 pub type Result<T> = std::result::Result<T, DossierError>;
 
@@ -9,7 +10,7 @@ pub enum DossierError {}
 
 pub type MarkdownString = String;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Entity {
     /// The title for the entity. Usually the name of the class/function/module, etc.
     pub title: String,
@@ -26,7 +27,7 @@ pub struct Entity {
     pub source: Source,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 /// Metadata about the source of an `Entity`
 pub struct Source {
     pub file: PathBuf,

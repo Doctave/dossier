@@ -1,12 +1,12 @@
-use dossier_core::Result;
+use dossier_core::{Config, DocsParser, Entity, Result, Source};
 use tree_sitter::{Parser as TParser, Query, QueryCursor};
 
 use std::path::Path;
 
 pub struct Parser {}
 
-impl Parser {
-    pub fn parse<P: AsRef<Path>>(path: P) -> Result<()> {
+impl DocsParser for Parser {
+    fn parse(&self, path: &Path, _config: &Config) -> Result<Vec<Entity>> {
         let code = std::fs::read_to_string(path).unwrap();
 
         let mut parser = TParser::new();
@@ -19,22 +19,86 @@ impl Parser {
 
         let query = Query::new(
             tree_sitter_typescript::language_typescript(),
-            "((comment)* @class_doc .(export_statement (class_declaration name: (type_identifier) @name body: (class_body) @body )))",
-        ).unwrap();
+            r#"
+             (
+                (comment) @comment
+                (export_statement 
+                   (interface_declaration
+                      name: (type_identifier) @interface_name
+                      type_parameters: (type_parameters) @type_parameters
+                   )
+                 )
+              )
+             "#,
+        )
+        .unwrap();
 
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), code.as_bytes());
 
-        let class_doc_index = query.capture_index_for_name("class_doc").unwrap();
-        let class_name_index = query.capture_index_for_name("name").unwrap();
+        let comment_index = query.capture_index_for_name("comment").unwrap();
+        let interface_name_index = query.capture_index_for_name("interface_name").unwrap();
+        let type_parameters_index = query.capture_index_for_name("type_parameters").unwrap();
 
-        println!("Classes:");
+        Ok(matches
+            .into_iter()
+            .map(|m| {
+                let interface_name = m
+                    .captures
+                    .iter()
+                    .find(|c| c.index == interface_name_index)
+                    .unwrap()
+                    .node
+                    .utf8_text(code.as_bytes())
+                    .unwrap();
 
-        for m in matches {
-            println!("docs: {:?}", m.captures.iter().find(|c| c.index == class_doc_index).unwrap().node.utf8_text(code.as_bytes()).unwrap());
-            println!("class: {:?}", m.captures.iter().find(|c| c.index == class_name_index).unwrap().node.utf8_text(code.as_bytes()).unwrap());
-        }
+                let type_parameters = m
+                    .captures
+                    .iter()
+                    .find(|c| c.index == type_parameters_index)
+                    .unwrap()
+                    .node
+                    .utf8_text(code.as_bytes())
+                    .unwrap();
 
-        Ok(())
+                let comment = m
+                    .captures
+                    .iter()
+                    .find(|c| c.index == comment_index)
+                    .unwrap()
+                    .node
+                    .utf8_text(code.as_bytes())
+                    .unwrap();
+
+                let comment = process_comment(comment);
+
+                Entity {
+                    title: format!("{}{}", interface_name, type_parameters),
+                    description: comment.to_owned(),
+                    kind: "interface".to_string(),
+                    children: vec![],
+                    language: "ts".to_owned(),
+                    source: Source {
+                        file: path.to_owned(),
+                        start_offset_bytes: 0,
+                        end_offset_bytes: 0,
+                        repository: None,
+                    },
+                }
+            })
+            .collect::<Vec<_>>())
     }
+}
+
+fn process_comment(comment: &str) -> String {
+    let mut tmp = comment.trim().to_owned();
+    tmp = tmp.trim_start_matches("/**").to_owned();
+    tmp = tmp.trim_end_matches("*/").to_owned();
+
+    tmp.lines()
+        .map(|l| l.trim().trim_start_matches("* ").trim_start_matches('*'))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_owned()
 }
