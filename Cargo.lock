@@ -35,6 +35,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "thiserror",
+ "tree-sitter",
 ]
 
 [[package]]
@@ -43,16 +44,30 @@ version = "0.1.0"
 dependencies = [
  "cc",
  "dossier-core",
+ "indoc",
+ "lazy_static",
  "tree-sitter",
  "tree-sitter-jsdoc",
  "tree-sitter-typescript",
 ]
 
 [[package]]
+name = "indoc"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e186cfbae8084e513daff4240b4797e342f988cecda4fb6c939150f96315fd8"
+
+[[package]]
 name = "itoa"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1a46d1a171d865aa5f83f92695765caa047a9b4cbae2cbf37dbd613a793fd4c"
+
+[[package]]
+name = "lazy_static"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"

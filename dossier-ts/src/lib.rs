@@ -3,6 +3,8 @@ use tree_sitter::{Parser as TParser, Query, QueryCursor};
 
 use std::path::Path;
 
+mod interface;
+
 pub struct Parser {}
 
 impl DocsParser for Parser {
@@ -90,7 +92,7 @@ impl DocsParser for Parser {
     }
 }
 
-fn process_comment(comment: &str) -> String {
+pub(crate) fn process_comment(comment: &str) -> String {
     let mut tmp = comment.trim().to_owned();
     tmp = tmp.trim_start_matches("/**").to_owned();
     tmp = tmp.trim_end_matches("*/").to_owned();

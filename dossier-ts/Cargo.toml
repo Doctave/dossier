@@ -10,6 +10,8 @@ dossier-core = { path="../dossier-core" }
 tree-sitter = "0.20.10"
 tree-sitter-typescript = "0.20.3"
 tree-sitter-jsdoc = { git = "https://github.com/tree-sitter/tree-sitter-jsdoc.git" }
+lazy_static = "1.4"
+indoc = "2"
 
 [build-dependencies]
 cc="*"
