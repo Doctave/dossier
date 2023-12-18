@@ -7,6 +7,8 @@ use std::{
 use serde::Serialize;
 use thiserror::Error;
 
+pub use tree_sitter;
+
 pub type Result<T> = std::result::Result<T, DossierError>;
 
 #[derive(Error, Debug)]
