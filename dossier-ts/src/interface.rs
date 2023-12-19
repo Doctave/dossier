@@ -47,6 +47,7 @@ pub(crate) fn parse_from_node(
     Ok(matches
         .into_iter()
         .map(|m| {
+            let main_node = node_for_capture("interface_body", m.captures).unwrap();
             let interface_name = get_string_from_match(m.captures, interface_name_index, code)
                 .unwrap()
                 .unwrap();
@@ -55,10 +56,7 @@ pub(crate) fn parse_from_node(
                 .map(|t| t.unwrap())
                 .unwrap_or("");
 
-            let interface_docs = find_docs(
-                node_for_capture("interface_body", m.captures).unwrap(),
-                code,
-            ).map(crate::process_comment);
+            let interface_docs = find_docs(main_node, code).map(crate::process_comment);
 
             Entity {
                 title: format!("{}{}", interface_name, type_parameters),
@@ -68,8 +66,8 @@ pub(crate) fn parse_from_node(
                 language: "ts".to_owned(),
                 source: Source {
                     file: path.to_owned(),
-                    start_offset_bytes: 0,
-                    end_offset_bytes: 0,
+                    start_offset_bytes: main_node.start_byte(),
+                    end_offset_bytes: main_node.end_byte(),
                     repository: None,
                 },
             }
