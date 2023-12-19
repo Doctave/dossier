@@ -33,6 +33,7 @@ pub(crate) fn parse_from_node(
             let main_node = node_for_capture("property", m.captures, &QUERY).unwrap();
             let name_node = node_for_capture("property_name", m.captures, &QUERY).unwrap();
             let mut type_node = node_for_capture("property_type", m.captures, &QUERY).unwrap();
+            // Go to the node that actually contains the whole type
             let mut cursor = type_node.walk();
             cursor.goto_first_child();
             cursor.goto_next_sibling();
@@ -77,4 +78,65 @@ fn find_docs<'a>(node: Node<'a>, code: &'a str) -> Option<&'a str> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod test {
+    /// NOTE: Properties are always inside some kind of context, so tests
+    /// need to create a parent node context in order to parse them correctly.
+    use super::*;
+    use indoc::indoc;
+
+    // fn parent_node<'a>(code: &'a str) -> Node<'a> {}
+
+    #[test]
+    fn parses_properties() {
+        let code = indoc! { r#"
+        interface ExampleInterface {
+            label: string;
+            optional?: string;
+            readonly age: number;
+        }
+        "#};
+
+        let mut parser = dossier_core::tree_sitter::Parser::new();
+
+        parser
+            .set_language(tree_sitter_typescript::language_typescript())
+            .expect("Error loading Rust grammar");
+
+        let tree = parser.parse(code.clone(), None).unwrap();
+
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.matches(&crate::interface::QUERY, tree.root_node(), code.as_bytes());
+
+        let parent_captures = matches
+            .into_iter()
+            .collect::<Vec<_>>()
+            .first()
+            .unwrap()
+            .captures;
+
+        let root =
+            node_for_capture("interface_body", parent_captures, &crate::interface::QUERY).unwrap();
+
+        let properties = parse_from_node(root, Path::new("index.ts"), code, &Config {}).unwrap();
+
+        assert_eq!(properties.len(), 3);
+
+        let mut property = &properties[0];
+        assert_eq!(property.title, "label");
+        assert_eq!(property.kind, "property");
+        assert_eq!(property.meta, json!({ "type": "string" }),);
+
+        property = &properties[1];
+        assert_eq!(property.title, "optional");
+        assert_eq!(property.kind, "property");
+        assert_eq!(property.meta, json!({ "type": "string", "optional": true }),);
+
+        property = &properties[2];
+        assert_eq!(property.title, "label");
+        assert_eq!(property.kind, "property");
+        assert_eq!(property.meta, json!({ "type": "number", "readonly": true }),);
+    }
 }

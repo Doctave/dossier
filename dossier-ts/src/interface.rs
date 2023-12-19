@@ -13,7 +13,7 @@ const QUERY_STRING: &str = indoc! {"
     "};
 
 lazy_static! {
-    static ref QUERY: Query =
+    pub(crate) static ref QUERY: Query =
         Query::new(tree_sitter_typescript::language_typescript(), QUERY_STRING).unwrap();
 }
 
