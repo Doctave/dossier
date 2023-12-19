@@ -1,6 +1,5 @@
-use dossier_core::indexmap::IndexMap;
 use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
-use dossier_core::{helpers::*, Config, Entity, Result, Source};
+use dossier_core::{helpers::*, serde_json::json, Config, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
@@ -64,7 +63,7 @@ pub(crate) fn parse_from_node(
                 kind: "interface".to_string(),
                 children,
                 language: "ts".to_owned(),
-                meta: IndexMap::new(),
+                meta: json!({}),
                 source: Source {
                     file: path.to_owned(),
                     start_offset_bytes: main_node.start_byte(),
@@ -97,7 +96,7 @@ fn find_docs<'a>(node: Node<'a>, code: &'a str) -> Option<&'a str> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use dossier_core::Value;
+    use dossier_core::serde_json::value::Value;
     use indoc::indoc;
 
     #[test]

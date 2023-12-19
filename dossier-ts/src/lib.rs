@@ -1,5 +1,4 @@
-use dossier_core::{Config, DocsParser, Entity, Result, Source};
-use tree_sitter::{Parser as TParser, Query, QueryCursor};
+use dossier_core::{Config, DocsParser, Entity, Result};
 
 use std::path::Path;
 

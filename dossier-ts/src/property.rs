@@ -1,9 +1,8 @@
-use dossier_core::indexmap::IndexMap;
-use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
-use dossier_core::{helpers::*, Config, Entity, Result, Source, Value};
+use dossier_core::serde_json::json;
+use dossier_core::tree_sitter::{Node, Query, QueryCursor};
+use dossier_core::{helpers::*, Config, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
-use tree_sitter::QueryCapture;
 
 use std::path::Path;
 
@@ -47,10 +46,10 @@ pub(crate) fn parse_from_node(
                 kind: "property".to_string(),
                 children: vec![],
                 language: "ts".to_owned(),
-                meta: IndexMap::from([(
-                    "type".to_owned(),
-                    Value::String(type_node.utf8_text(code.as_bytes()).unwrap().to_owned()),
-                )]),
+                meta: json!({
+                    "type".to_owned():
+                    type_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
+                }),
                 source: Source {
                     file: path.to_owned(),
                     start_offset_bytes: main_node.start_byte(),

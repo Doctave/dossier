@@ -4,12 +4,12 @@ use std::{
     str::Utf8Error,
 };
 
-use indexmap::IndexMap;
 use serde::Serialize;
 use thiserror::Error;
 
 pub use indexmap;
 pub use tree_sitter;
+pub use serde_json;
 
 pub type Result<T> = std::result::Result<T, DossierError>;
 
@@ -47,18 +47,7 @@ pub struct Entity {
     /// The language of the entity
     pub source: Source,
     /// Arbitrary metadata different types of entities need to store
-    pub meta: IndexMap<String, Value>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub enum Value {
-    Null,
-    Bool(bool),
-    Integer(isize),
-    Real(f64),
-    String(String),
-    Array(Vec<Value>),
-    Object(IndexMap<String, Value>),
+    pub meta: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
