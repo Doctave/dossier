@@ -6,3 +6,5 @@ members = [
     "dossier-ts",
 ]
 
+[patch.crates-io]
+tree-sitter = { git ="https://github.com/tree-sitter/tree-sitter.git", rev="660481d" }

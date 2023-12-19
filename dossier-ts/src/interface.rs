@@ -1,28 +1,23 @@
 use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
 use dossier_core::{helpers::*, Config, Entity, Result, Source};
+use indoc::indoc;
 use lazy_static::lazy_static;
+use tree_sitter::QueryCapture;
 
 use std::path::Path;
 
-const INTERFACE_DECLARATION_QUERY: &str = "
-      (interface_declaration
-         name: (type_identifier) @interface_name
-         type_parameters: (type_parameters) ? @type_parameters
-      ) @interface_body
-    ";
+const QUERY_STRING: &str = indoc! {"
+      (
+          (interface_declaration
+             name: (type_identifier) @interface_name
+             type_parameters: (type_parameters) ? @type_parameters
+          ) @interface_body
+      )
+    "};
 
 lazy_static! {
-    static ref QUERY_STRING: String = format!(
-        r#"
-         [
-            ( (comment)* @interface_docs . (export_statement . {} ))
-            ( (comment)* @interface_docs . {})
-         ]
-        "#,
-        INTERFACE_DECLARATION_QUERY, INTERFACE_DECLARATION_QUERY,
-    );
     static ref QUERY: Query =
-        Query::new(tree_sitter_typescript::language_typescript(), &QUERY_STRING).unwrap();
+        Query::new(tree_sitter_typescript::language_typescript(), QUERY_STRING).unwrap();
 }
 
 pub(crate) fn parse(code: &str, path: &Path, config: &Config) -> Result<Vec<Entity>> {
@@ -46,7 +41,6 @@ pub(crate) fn parse_from_node(
     let mut cursor = QueryCursor::new();
     let matches = cursor.matches(&QUERY, node, code.as_bytes());
 
-    let interface_docs_index = QUERY.capture_index_for_name("interface_docs").unwrap();
     let interface_name_index = QUERY.capture_index_for_name("interface_name").unwrap();
     let type_parameters_index = QUERY.capture_index_for_name("type_parameters").unwrap();
 
@@ -61,15 +55,14 @@ pub(crate) fn parse_from_node(
                 .map(|t| t.unwrap())
                 .unwrap_or("");
 
-            let interface_docs = get_string_from_match(m.captures, interface_docs_index, code)
-                .map(|t| t.unwrap())
-                .unwrap_or("");
-
-            let interface_docs = crate::process_comment(interface_docs);
+            let interface_docs = find_docs(
+                node_for_capture("interface_body", m.captures).unwrap(),
+                code,
+            ).map(crate::process_comment);
 
             Entity {
                 title: format!("{}{}", interface_name, type_parameters),
-                description: interface_docs,
+                description: interface_docs.unwrap_or("".to_owned()),
                 kind: "interface".to_string(),
                 children: vec![],
                 language: "ts".to_owned(),
@@ -82,6 +75,31 @@ pub(crate) fn parse_from_node(
             }
         })
         .collect::<Vec<_>>())
+}
+
+fn find_docs<'a>(node: Node<'a>, code: &'a str) -> Option<&'a str> {
+    let parent = node.parent().unwrap();
+
+    if parent.kind() == "export_statement" {
+        if let Some(maybe_comment) = parent.prev_sibling() {
+            if maybe_comment.kind() == "comment" {
+                return Some(maybe_comment.utf8_text(code.as_bytes()).unwrap());
+            }
+        }
+    } else if let Some(maybe_comment) = node.prev_sibling() {
+        if maybe_comment.kind() == "comment" {
+            return Some(maybe_comment.utf8_text(code.as_bytes()).unwrap());
+        }
+    }
+
+    None
+}
+
+fn node_for_capture<'a>(name: &str, captures: &'a [QueryCapture<'a>]) -> Option<Node<'a>> {
+    QUERY
+        .capture_index_for_name(name)
+        .and_then(|index| captures.iter().find(|c| c.index == index))
+        .map(|c| c.node)
 }
 
 #[cfg(test)]
