@@ -4,9 +4,11 @@ use std::{
     str::Utf8Error,
 };
 
+use indexmap::IndexMap;
 use serde::Serialize;
 use thiserror::Error;
 
+pub use indexmap;
 pub use tree_sitter;
 
 pub type Result<T> = std::result::Result<T, DossierError>;
@@ -44,6 +46,19 @@ pub struct Entity {
     pub language: String,
     /// The language of the entity
     pub source: Source,
+    /// Arbitrary metadata different types of entities need to store
+    pub meta: IndexMap<String, Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub enum Value {
+    Null,
+    Bool(bool),
+    Integer(isize),
+    Real(f64),
+    String(String),
+    Array(Vec<Value>),
+    Object(IndexMap<String, Value>),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -59,7 +74,10 @@ pub struct Source {
 }
 
 #[derive(Debug, Clone)]
-/// Metadata about the source of an `Entity`
+/// A config passed into parsers.
+///
+/// Placeholder for now, but in the future could contain information
+/// about the parsing context like the current repository, etc.
 pub struct Config {}
 
 /// The trait for implementing language-specific parsers
@@ -69,9 +87,16 @@ pub trait DocsParser {
 }
 
 pub mod helpers {
-    use tree_sitter::QueryCapture;
+    use tree_sitter::{QueryCapture, Query, Node};
 
     use crate::DossierError;
+
+    pub fn node_for_capture<'a>(name: &str, captures: &'a [QueryCapture<'a>], query: &Query) -> Option<Node<'a>> {
+        query
+            .capture_index_for_name(name)
+            .and_then(|index| captures.iter().find(|c| c.index == index))
+            .map(|c| c.node)
+    }
 
     pub fn get_string_from_match<'a>(
         captures: &'a [QueryCapture],

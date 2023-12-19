@@ -4,6 +4,7 @@ use tree_sitter::{Parser as TParser, Query, QueryCursor};
 use std::path::Path;
 
 mod interface;
+mod property;
 
 pub struct Parser {}
 
