@@ -41,16 +41,26 @@ pub(crate) fn parse_from_node(
 
             let interface_docs = find_docs(main_node, code).map(crate::process_comment);
 
+            let mut meta = json!({
+                "type".to_owned():
+                type_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
+            });
+
+            if is_readonly(&main_node, code) {
+                meta["readonly"] = true.into();
+            }
+
+            if is_optional(&main_node, code) {
+                meta["optional"] = true.into();
+            }
+
             Entity {
                 title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "property".to_string(),
                 children: vec![],
                 language: "ts".to_owned(),
-                meta: json!({
-                    "type".to_owned():
-                    type_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
-                }),
+                meta,
                 source: Source {
                     file: path.to_owned(),
                     start_offset_bytes: main_node.start_byte(),
@@ -60,6 +70,15 @@ pub(crate) fn parse_from_node(
             }
         })
         .collect::<Vec<_>>())
+}
+
+fn is_readonly(node: &Node, code: &str) -> bool {
+    node.utf8_text(code.as_bytes()).unwrap().starts_with("readonly")
+}
+
+// TODO: Make more robust
+fn is_optional(node: &Node, code: &str) -> bool {
+    node.utf8_text(code.as_bytes()).unwrap().contains("?:")
 }
 
 fn find_docs<'a>(node: Node<'a>, code: &'a str) -> Option<&'a str> {
@@ -135,7 +154,7 @@ mod test {
         assert_eq!(property.meta, json!({ "type": "string", "optional": true }),);
 
         property = &properties[2];
-        assert_eq!(property.title, "label");
+        assert_eq!(property.title, "age");
         assert_eq!(property.kind, "property");
         assert_eq!(property.meta, json!({ "type": "number", "readonly": true }),);
     }
