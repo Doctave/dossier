@@ -76,3 +76,50 @@ fn find_docs(node: &Node, code: &str) -> String {
 
     String::new()
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    fn nodes_in_context(code: &str) -> Result<Vec<Entity>> {
+        let context = format!("interface PlaceholderContext {{ {} }}", code);
+
+        let mut parser = dossier_core::tree_sitter::Parser::new();
+
+        parser
+            .set_language(tree_sitter_typescript::language_typescript())
+            .expect("Error loading Rust grammar");
+
+        let tree = parser.parse(code.clone(), None).unwrap();
+
+        let mut cursor = QueryCursor::new();
+        let matches = cursor.matches(&crate::interface::QUERY, tree.root_node(), code.as_bytes());
+
+        let parent_captures = matches
+            .into_iter()
+            .collect::<Vec<_>>()
+            .first()
+            .unwrap()
+            .captures;
+
+        let root =
+            node_for_capture("interface_body", parent_captures, &crate::interface::QUERY).unwrap();
+
+        parse_from_node(root, Path::new("index.ts"), &context, &Config {})
+    }
+
+    #[test]
+    fn method_with_return_type_parameter() {
+        let methods = nodes_in_context(indoc! {r#"
+           get expression(): Expression<T>
+        "#})
+        .unwrap();
+
+        assert_eq!(methods.len(), 1);
+
+        let method = &methods[0];
+        assert_eq!(method.title, "expression");
+        assert_eq!(method.kind, "method");
+        assert_eq!(method.meta, json!({ "return_type": "Expression<T>" }),);
+    }
+}
