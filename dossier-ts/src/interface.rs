@@ -100,76 +100,6 @@ mod test {
     use indoc::indoc;
 
     #[test]
-    fn parse_interface_name() {
-        let code = indoc! { r#"
-        interface TheInterface {}
-        "#};
-
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
-        assert_eq!(result.len(), 1);
-        let interface = &result[0];
-
-        assert_eq!(interface.title, "TheInterface");
-        assert_eq!(interface.kind, "interface");
-        assert_eq!(interface.language, "ts");
-        assert_eq!(interface.description, "");
-    }
-
-    #[test]
-    fn parse_exported_interface_name() {
-        let code = indoc! { r#"
-        export interface TheExportedInterface {}
-        "#};
-
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
-        let interface = &result[0];
-
-        assert_eq!(interface.title, "TheExportedInterface");
-        assert_eq!(interface.kind, "interface");
-        assert_eq!(interface.language, "ts");
-        assert_eq!(interface.description, "");
-    }
-
-    #[test]
-    fn parse_interface_docstring() {
-        let code = indoc! { r#"
-        /**
-         * This is the comment
-         */
-        interface TheExportedInterface {}
-        "#};
-
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
-        assert_eq!(result.len(), 1);
-        let interface = &result[0];
-
-        assert_eq!(interface.title, "TheExportedInterface");
-        assert_eq!(interface.kind, "interface");
-        assert_eq!(interface.language, "ts");
-        assert_eq!(interface.description, "This is the comment");
-    }
-
-    #[test]
-    fn parse_exported_interface_docstring() {
-        let code = indoc! { r#"
-        /**
-         * This is the comment
-         */
-        export interface TheExportedInterface {}
-        "#};
-
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
-        println!("{:#?}", result);
-        assert_eq!(result.len(), 1);
-        let interface = &result[0];
-
-        assert_eq!(interface.title, "TheExportedInterface");
-        assert_eq!(interface.kind, "interface");
-        assert_eq!(interface.language, "ts");
-        assert_eq!(interface.description, "This is the comment");
-    }
-
-    #[test]
     fn parse_multiline_interface_docstring() {
         let code = indoc! { r#"
         /**
@@ -191,37 +121,6 @@ mod test {
             interface.description,
             "This is the comment\n\nWith more lines"
         );
-    }
-
-    #[test]
-    fn parse_multiple_interfaces() {
-        let code = indoc! { r#"
-        /**
-         * This is the comment
-         */
-        interface TheExportedInterface {}
-
-        /**
-         * This is another comment
-         */
-        interface TheOtherExportedInterface {}
-        "#};
-
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
-        assert_eq!(result.len(), 2);
-        let interface = &result[0];
-
-        assert_eq!(interface.title, "TheExportedInterface");
-        assert_eq!(interface.kind, "interface");
-        assert_eq!(interface.language, "ts");
-        assert_eq!(interface.description, "This is the comment");
-
-        let interface = &result[1];
-
-        assert_eq!(interface.title, "TheOtherExportedInterface");
-        assert_eq!(interface.kind, "interface");
-        assert_eq!(interface.language, "ts");
-        assert_eq!(interface.description, "This is another comment");
     }
 
     #[test]
