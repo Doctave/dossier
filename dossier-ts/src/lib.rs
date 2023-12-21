@@ -3,6 +3,7 @@ use dossier_core::{Config, DocsParser, Entity, Result};
 use std::path::Path;
 
 mod interface;
+mod method;
 mod property;
 
 pub struct Parser {}

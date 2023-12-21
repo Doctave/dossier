@@ -5,6 +5,8 @@ use lazy_static::lazy_static;
 
 use std::path::Path;
 
+use crate::{method, property};
+
 const QUERY_STRING: &str = indoc! {"
       (interface_declaration
          name: (type_identifier) @interface_name
@@ -55,7 +57,9 @@ pub(crate) fn parse_from_node(
 
             let interface_docs = find_docs(main_node, code).map(crate::process_comment);
 
-            let children = crate::property::parse_from_node(main_node, path, code, config).unwrap();
+            let mut children = vec![];
+            children.append(&mut property::parse_from_node(main_node, path, code, config).unwrap());
+            children.append(&mut method::parse_from_node(main_node, path, code, config).unwrap());
 
             Entity {
                 title: format!("{}{}", interface_name, type_parameters),
@@ -195,6 +199,33 @@ mod test {
         assert_eq!(
             property.meta.get("type"),
             Some(&Value::String("string".to_string()))
+        );
+    }
+
+    #[test]
+    fn parse_interface_with_methods() {
+        let code = indoc! { r#"
+        interface ExampleInterface {
+          /**
+           * Creates the OperationNode that describes how to compile this expression into SQL.
+           */
+          toOperationNode(): AliasNode
+        }
+        "#};
+
+        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
+        assert_eq!(result.len(), 1);
+        let interface = &result[0];
+
+        assert_eq!(interface.title, "ExampleInterface");
+        assert_eq!(interface.kind, "interface");
+
+        let property = &interface.children[0];
+        assert_eq!(property.title, "toOperationNode");
+        assert_eq!(property.kind, "method");
+        assert_eq!(
+            property.meta.get("return_type"),
+            Some(&Value::String("AliasNode".to_string()))
         );
     }
 }
