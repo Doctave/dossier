@@ -1,0 +1,3 @@
+[submodule "fixtures/kysely"]
+	path = fixtures/kysely
+	url = git@github.com:kysely-org/kysely.git
