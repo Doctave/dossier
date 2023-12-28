@@ -41,10 +41,10 @@ pub(crate) fn parse_from_node(
 
             let interface_docs = find_docs(main_node, code).map(crate::process_comment);
 
-            let mut meta = json!({
-                "type".to_owned():
-                type_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
-            });
+            let mut members = vec![];
+            let mut meta = json!({});
+
+            members.push(parse_type(&type_node, code, path));
 
             if is_readonly(&main_node, code) {
                 meta["readonly"] = true.into();
@@ -58,8 +58,8 @@ pub(crate) fn parse_from_node(
                 title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "property".to_string(),
-                members: vec![],
-                member_kind: Some("property".to_string()),
+                members,
+                member_context: Some("property".to_string()),
                 language: "ts".to_owned(),
                 meta,
                 source: Source {
@@ -71,6 +71,24 @@ pub(crate) fn parse_from_node(
             }
         })
         .collect::<Vec<_>>())
+}
+
+fn parse_type(node: &Node, code: &str, path: &Path) -> Entity {
+    Entity {
+        title: node.utf8_text(code.as_bytes()).unwrap().to_owned(),
+        description: "".to_string(),
+        kind: "type".to_string(),
+        members: vec![],
+        member_context: Some("type".to_string()),
+        language: "ts".to_owned(),
+        meta: json!({}),
+        source: Source {
+            file: path.to_owned(),
+            start_offset_bytes: node.start_byte(),
+            end_offset_bytes: node.end_byte(),
+            repository: None,
+        },
+    }
 }
 
 fn is_readonly(node: &Node, code: &str) -> bool {
@@ -109,8 +127,6 @@ mod test {
     use super::*;
     use indoc::indoc;
 
-    // fn parent_node<'a>(code: &'a str) -> Node<'a> {}
-
     #[test]
     fn parses_properties() {
         let code = indoc! { r#"
@@ -147,21 +163,31 @@ mod test {
         assert_eq!(properties.len(), 3);
 
         let mut property = &properties[0];
+        let mut property_type = &property.members[0];
+
         assert_eq!(property.title, "label");
         assert_eq!(property.kind, "property");
-        assert_eq!(property.member_kind.as_deref(), Some("property"));
-        assert_eq!(property.meta, json!({ "type": "string" }),);
+        assert_eq!(property.member_context.as_deref(), Some("property"));
+        assert_eq!(property_type.title, "string");
 
         property = &properties[1];
+        property_type = &property.members[0];
+
         assert_eq!(property.title, "optional");
         assert_eq!(property.kind, "property");
-        assert_eq!(property.member_kind.as_deref(), Some("property"));
-        assert_eq!(property.meta, json!({ "type": "string", "optional": true }),);
+        assert_eq!(property.member_context.as_deref(), Some("property"));
+        assert_eq!(property.meta, json!({ "optional": true }));
+        assert_eq!(property_type.title, "string");
+        assert_eq!(property_type.member_context.as_deref(), Some("type"));
 
         property = &properties[2];
+        property_type = &property.members[0];
+
         assert_eq!(property.title, "age");
         assert_eq!(property.kind, "property");
-        assert_eq!(property.member_kind.as_deref(), Some("property"));
-        assert_eq!(property.meta, json!({ "type": "number", "readonly": true }),);
+        assert_eq!(property.member_context.as_deref(), Some("property"));
+        assert_eq!(property.meta, json!({ "readonly": true }));
+        assert_eq!(property_type.title, "number");
+        assert_eq!(property_type.member_context.as_deref(), Some("type"));
     }
 }

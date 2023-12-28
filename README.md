@@ -46,3 +46,29 @@ $ dossier kysely/src/expression/expression.ts
 ## How it works
 
 Dossier uses [`tree-sitter`](https://tree-sitter.github.io/tree-sitter/) to parse source code. When implementing a new language in Dossier, the author uses tree-sitter [queries](https://tree-sitter.github.io/tree-sitter/using-parsers#pattern-matching-with-queries) to find the relevant language features: e.g. methods, classes, interfaces, etc. These features are then converted into a standardized output format.
+
+## The `Entity` data structure
+
+The `Entity` data structure is the foundation of Dossier: every element or "entity" found in any language is described by this object.
+
+For this reason, a lot of thought has gone into designing this structure. It has to be flexible enought to work in languages with different features, but also concise enough to be easily understandable so it can be integrated into other tools.
+
+### The basics
+
+Let's take a typescript function like this:
+
+```typescript
+function parse(input: string, config: ParserConfig): Ast {
+  // ...
+}
+```
+
+How would we convert this into Dossier entities?
+
+Well, first of all, we'd have a top level `function` entity, with the `title` of `parse`. But how do we ahandle the parameters and return type?
+
+Instead of having `return_type` or `parameters` fields on an entity, instead we have a general `members` list. Any entity with children, be it a class, namespace, function, or module, will always have one place for describing its children.
+
+To distinguish the purpose of each member, nested entities include a `memberKind` field. In this case, the function has 3 members: 2 with `memberKind` of `parameter`, and 1 with `memberKind` of `returnType`.
+
+The first `parameter` entity's title would be `input`, and it would itself have a member that describes its type. In this case, a `string` type.

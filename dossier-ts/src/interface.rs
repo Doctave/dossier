@@ -66,7 +66,7 @@ pub(crate) fn parse_from_node(
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "interface".to_string(),
                 members,
-                member_kind: Some("interface".to_string()),
+                member_context: Some("interface".to_string()),
                 language: "ts".to_owned(),
                 meta: json!({}),
                 source: Source {
@@ -197,11 +197,11 @@ mod test {
         let property = &interface.members[0];
         assert_eq!(property.title, "label");
         assert_eq!(property.kind, "property");
-        assert_eq!(property.member_kind.as_deref(), Some("property"));
-        assert_eq!(
-            property.meta.get("type"),
-            Some(&Value::String("string".to_string()))
-        );
+        assert_eq!(property.member_context.as_deref(), Some("property"));
+
+        let property_type = &property.members[0];
+
+        assert_eq!(property_type.title, "string");
     }
 
     #[test]
@@ -225,12 +225,12 @@ mod test {
         let property = &interface.members[0];
         assert_eq!(property.title, "toOperationNode");
         assert_eq!(property.kind, "method");
-        assert_eq!(property.member_kind.as_deref(), Some("method"));
+        assert_eq!(property.member_context.as_deref(), Some("method"));
 
         assert_eq!(property.members.len(), 1);
         let return_type = property.members.first().unwrap();
 
-        assert_eq!(return_type.member_kind.as_deref(), Some("returnType"));
+        assert_eq!(return_type.member_context.as_deref(), Some("returnType"));
         assert_eq!(return_type.kind, "type");
         assert_eq!(return_type.title, "AliasNode");
     }
