@@ -124,9 +124,17 @@ fn parse_parameter(node: &Node, code: &str, path: &Path) -> Entity {
     let identifier_node = node.child_by_field_name("pattern").unwrap();
     let type_node = node.child_by_field_name("type").unwrap();
 
+    let identifier_name = identifier_node.utf8_text(code.as_bytes()).unwrap();
     let mut type_name = type_node.utf8_text(code.as_bytes()).unwrap();
+    let mut meta = json!({});
+
     if type_name.starts_with(':') {
         type_name = type_name.trim_start_matches(':').trim();
+    }
+
+    // TODO: More robust way to detect optional parameters
+    if node.utf8_text(code.as_bytes()).unwrap().contains("?:") {
+        meta["optional"] = true.into();
     }
 
     let type_entity = Entity {
@@ -146,13 +154,13 @@ fn parse_parameter(node: &Node, code: &str, path: &Path) -> Entity {
     };
 
     Entity {
-        title: identifier_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
+        title: identifier_name.to_owned(),
         description: "".to_string(),
         kind: "parameter".to_string(),
         members: vec![type_entity],
         member_context: Some("parameter".to_string()),
         language: "ts".to_owned(),
-        meta: json!({}),
+        meta,
         source: Source {
             file: path.to_owned(),
             start_offset_bytes: node.start_byte(),
@@ -267,5 +275,29 @@ mod test {
         let parameter_type = &parameter.members[0];
         assert_eq!(parameter_type.title, "number");
         assert_eq!(parameter_type.kind, "type");
+    }
+
+    #[test]
+    fn method_with_optional_parameter() {
+        let methods = nodes_in_interface_context(indoc! {r#"
+            example(foo?: string)
+        "#})
+        .unwrap();
+
+        assert_eq!(methods.len(), 1);
+
+        let method = &methods[0];
+        assert_eq!(method.title, "example");
+        assert_eq!(method.kind, "method");
+
+        let parameters = &method.members;
+        assert_eq!(parameters.len(), 1);
+
+        let parameter = &parameters[0];
+
+        assert_eq!(parameter.member_context.as_deref(), Some("parameter"));
+        assert_eq!(parameter.kind, "parameter");
+        assert_eq!(parameter.title, "foo");
+        assert_eq!(parameter.meta, json!({ "optional": true }));
     }
 }
