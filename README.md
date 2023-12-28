@@ -58,6 +58,9 @@ For this reason, a lot of thought has gone into designing this structure. It has
 Let's take a typescript function like this:
 
 ```typescript
+/**
+ * Docs for this function
+ */
 function parse(input: string, config: ParserConfig): Ast {
   // ...
 }
@@ -65,10 +68,48 @@ function parse(input: string, config: ParserConfig): Ast {
 
 How would we convert this into Dossier entities?
 
-Well, first of all, we'd have a top level `function` entity, with the `title` of `parse`. But how do we ahandle the parameters and return type?
+Well, first of all, we'd have a top level `function` entity, with the `title` of `parse`.
 
-Instead of having `return_type` or `parameters` fields on an entity, instead we have a general `members` list. Any entity with children, be it a class, namespace, function, or module, will always have one place for describing its children.
+```json
+// Some fields removed for brevity
+{
+  "title": "parse",
+  "kind": "function",
+  "description": "Docs for this function"
+}
+```
+
+But how do we handle the parameters and return type?
+
+Instead of having `return_type` or `parameters` fields on an entity, we have a general `members` list. Any entity with children, be it a class, namespace, function, or module, will always have one place for describing its children.
 
 To distinguish the purpose of each member, nested entities include a `memberKind` field. In this case, the function has 3 members: 2 with `memberKind` of `parameter`, and 1 with `memberKind` of `returnType`.
 
-The first `parameter` entity's title would be `input`, and it would itself have a member that describes its type. In this case, a `string` type.
+The first `parameter` entity's title would be `input`, and it would itself have a member that describes its type. In this case, a `string` type:
+
+```json
+// Some fields removed for brevity
+{
+  "title": "parse",
+  "kind": "function",
+  "description": "Docs for this function"
+  "members": [
+    {
+      "title": "string",
+      "kind": "type",
+      "memberKind": "returnType",
+    },
+    {
+      "title": "input",
+      "kind": "parameter",
+      "memberKind": "parameter",
+      "members": [
+        {
+          "title": "string",
+          "kind": "type",
+        }
+      ]
+    }
+  ]
+}
+```
