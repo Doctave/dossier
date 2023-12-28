@@ -57,15 +57,16 @@ pub(crate) fn parse_from_node(
 
             let interface_docs = find_docs(main_node, code).map(crate::process_comment);
 
-            let mut children = vec![];
-            children.append(&mut property::parse_from_node(main_node, path, code, config).unwrap());
-            children.append(&mut method::parse_from_node(main_node, path, code, config).unwrap());
+            let mut members = vec![];
+            members.append(&mut property::parse_from_node(main_node, path, code, config).unwrap());
+            members.append(&mut method::parse_from_node(main_node, path, code, config).unwrap());
 
             Entity {
                 title: format!("{}{}", interface_name, type_parameters),
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "interface".to_string(),
-                children,
+                members,
+                member_kind: Some("interface".to_string()),
                 language: "ts".to_owned(),
                 meta: json!({}),
                 source: Source {
@@ -193,9 +194,10 @@ mod test {
         assert_eq!(interface.title, "ExampleInterface");
         assert_eq!(interface.kind, "interface");
 
-        let property = &interface.children[0];
+        let property = &interface.members[0];
         assert_eq!(property.title, "label");
         assert_eq!(property.kind, "property");
+        assert_eq!(property.member_kind.as_deref(), Some("property"));
         assert_eq!(
             property.meta.get("type"),
             Some(&Value::String("string".to_string()))
@@ -220,9 +222,10 @@ mod test {
         assert_eq!(interface.title, "ExampleInterface");
         assert_eq!(interface.kind, "interface");
 
-        let property = &interface.children[0];
+        let property = &interface.members[0];
         assert_eq!(property.title, "toOperationNode");
         assert_eq!(property.kind, "method");
+        assert_eq!(property.member_kind.as_deref(), Some("method"));
         assert_eq!(
             property.meta.get("return_type"),
             Some(&Value::String("AliasNode".to_string()))

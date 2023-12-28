@@ -41,7 +41,9 @@ pub struct Entity {
     /// Each language will have a different set of entities.
     pub kind: String,
     /// Child entities. E.g. classes may contain functions, modules may have child modules, etc.
-    pub children: Vec<Entity>,
+    pub members: Vec<Entity>,
+    /// What kind of members does this entity have? E.g. a class may have methods and properties.
+    pub member_kind: Option<String>,
     /// The language of the entity
     pub language: String,
     /// The language of the entity

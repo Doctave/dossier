@@ -53,7 +53,8 @@ pub(crate) fn parse_from_node(
                 title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
                 description: docs,
                 kind: "method".to_string(),
-                children: vec![],
+                members: vec![],
+                member_kind: Some("method".to_string()),
                 language: "ts".to_owned(),
                 meta,
                 source: Source {

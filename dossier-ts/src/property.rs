@@ -58,7 +58,8 @@ pub(crate) fn parse_from_node(
                 title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "property".to_string(),
-                children: vec![],
+                members: vec![],
+                member_kind: Some("property".to_string()),
                 language: "ts".to_owned(),
                 meta,
                 source: Source {
@@ -73,7 +74,9 @@ pub(crate) fn parse_from_node(
 }
 
 fn is_readonly(node: &Node, code: &str) -> bool {
-    node.utf8_text(code.as_bytes()).unwrap().starts_with("readonly")
+    node.utf8_text(code.as_bytes())
+        .unwrap()
+        .starts_with("readonly")
 }
 
 // TODO: Make more robust
@@ -146,16 +149,19 @@ mod test {
         let mut property = &properties[0];
         assert_eq!(property.title, "label");
         assert_eq!(property.kind, "property");
+        assert_eq!(property.member_kind.as_deref(), Some("property"));
         assert_eq!(property.meta, json!({ "type": "string" }),);
 
         property = &properties[1];
         assert_eq!(property.title, "optional");
         assert_eq!(property.kind, "property");
+        assert_eq!(property.member_kind.as_deref(), Some("property"));
         assert_eq!(property.meta, json!({ "type": "string", "optional": true }),);
 
         property = &properties[2];
         assert_eq!(property.title, "age");
         assert_eq!(property.kind, "property");
+        assert_eq!(property.member_kind.as_deref(), Some("property"));
         assert_eq!(property.meta, json!({ "type": "number", "readonly": true }),);
     }
 }
