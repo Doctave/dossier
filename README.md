@@ -70,7 +70,7 @@ How would we convert this into Dossier entities?
 
 Well, first of all, we'd have a top level `function` entity, with the `title` of `parse`.
 
-```json
+```javascript
 // Some fields removed for brevity
 {
   "title": "parse",
@@ -87,7 +87,7 @@ To distinguish the purpose of each member, nested entities include a `memberKind
 
 The first `parameter` entity's title would be `input`, and it would itself have a member that describes its type. In this case, a `string` type:
 
-```json
+```javascript
 // Some fields removed for brevity
 {
   "title": "parse",
