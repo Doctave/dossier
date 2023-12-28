@@ -24,7 +24,7 @@ pub(crate) fn parse(code: &str, path: &Path, config: &Config) -> Result<Vec<Enti
 
     parser
         .set_language(tree_sitter_typescript::language_typescript())
-        .expect("Error loading Rust grammar");
+        .expect("Error loading TypeScript grammar");
 
     let tree = parser.parse(code.clone(), None).unwrap();
 
@@ -226,9 +226,12 @@ mod test {
         assert_eq!(property.title, "toOperationNode");
         assert_eq!(property.kind, "method");
         assert_eq!(property.member_kind.as_deref(), Some("method"));
-        assert_eq!(
-            property.meta.get("return_type"),
-            Some(&Value::String("AliasNode".to_string()))
-        );
+
+        assert_eq!(property.members.len(), 1);
+        let return_type = property.members.first().unwrap();
+
+        assert_eq!(return_type.member_kind.as_deref(), Some("returnType"));
+        assert_eq!(return_type.kind, "type");
+        assert_eq!(return_type.title, "AliasNode");
     }
 }
