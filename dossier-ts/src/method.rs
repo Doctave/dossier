@@ -79,20 +79,12 @@ pub(crate) fn parse_from_node(
 
             if let Some(parameters) = parameter_node {
                 let mut cursor = parameters.walk();
-
                 if cursor.goto_first_child() {
                     loop {
-                        if cursor.node().kind() != "required_parameter"
-                            && cursor.node().kind() != "optional_parameter"
-                        {
-                            if cursor.goto_next_sibling() {
-                                continue;
-                            } else {
-                                break;
-                            }
+                        let node_kind = cursor.node().kind();
+                        if node_kind == "required_parameter" || node_kind == "optional_parameter" {
+                            members.push(parse_parameter(&cursor.node(), code, path));
                         }
-
-                        members.push(parse_parameter(&cursor.node(), code, path));
 
                         if !cursor.goto_next_sibling() {
                             break;
