@@ -101,8 +101,6 @@ fn find_docs<'a>(node: Node<'a>, code: &'a str) -> Option<&'a str> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use dossier_core::serde_json::value::Value;
-    use indoc::indoc;
 
     #[test]
     fn parse_multiline_interface_docstring() {

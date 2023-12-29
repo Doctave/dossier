@@ -5,6 +5,8 @@ use std::path::Path;
 mod interface;
 mod method;
 mod property;
+mod function;
+mod parameter;
 
 pub struct Parser {}
 
@@ -15,6 +17,7 @@ impl DocsParser for Parser {
         let mut out = vec![];
 
         out.append(&mut interface::parse(&code, path, config)?);
+        out.append(&mut function::parse(&code, path, config)?);
 
         Ok(out)
     }
