@@ -1,18 +1,25 @@
+use crate::parameter;
 use dossier_core::serde_json::json;
 use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
 use dossier_core::{helpers::*, Config, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
-use crate::parameter;
 
 use std::path::Path;
 
 const QUERY_STRING: &str = indoc! {"
-    (method_signature 
-        name: (property_identifier) @method_name
-        parameters: (formal_parameters) @method_parameters
-        return_type: (type_annotation) ? @method_return_type
-    ) @method
+    [
+        (method_definition 
+            name: (property_identifier) @method_name
+            parameters: (formal_parameters) @method_parameters
+            return_type: (type_annotation) ? @method_return_type
+        ) @method
+        (method_signature 
+            name: (property_identifier) @method_name
+            parameters: (formal_parameters) @method_parameters
+            return_type: (type_annotation) ? @method_return_type
+        ) @method
+    ]
     "};
 
 lazy_static! {
@@ -51,7 +58,7 @@ pub(crate) fn parse_from_node(
 
             let docs = find_docs(&main_node, code);
 
-            let meta = json!({});
+            let mut meta = json!({});
             let mut members = vec![];
 
             if let Some(return_type) = return_type {
@@ -78,13 +85,28 @@ pub(crate) fn parse_from_node(
                 });
             }
 
+            if main_node
+                .utf8_text(code.as_bytes())
+                .unwrap()
+                .trim()
+                .starts_with("get ")
+            {
+                meta["getter"] = true.into();
+            }
+
+            if main_node
+                .utf8_text(code.as_bytes())
+                .unwrap()
+                .trim()
+                .starts_with("set ")
+            {
+                meta["setter"] = true.into();
+            }
+
             if let Some(parameters) = parameter_node {
-                members.append(&mut parameter::parse_from_node(
-                    &parameters,
-                    path,
-                    code,
-                    &Config {},
-                ).unwrap());
+                members.append(
+                    &mut parameter::parse_from_node(&parameters, path, code, &Config {}).unwrap(),
+                );
             }
 
             Entity {
@@ -235,5 +257,39 @@ mod test {
         assert_eq!(parameter.kind, "parameter");
         assert_eq!(parameter.title, "foo");
         assert_eq!(parameter.meta, json!({ "optional": true }));
+    }
+
+    #[test]
+    fn getter() {
+        let methods = nodes_in_interface_context(indoc! {r#"
+            get length() {
+              return this._length;
+            }
+        "#})
+        .unwrap();
+
+        assert_eq!(methods.len(), 1);
+
+        let method = &methods[0];
+        assert_eq!(method.title, "length");
+        assert_eq!(method.kind, "method");
+        assert_eq!(method.meta, json!({ "getter": true }));
+    }
+
+    #[test]
+    fn setter() {
+        let methods = nodes_in_interface_context(indoc! {r#"
+            set length(foo: string) {
+              return this._length = foo;
+            }
+        "#})
+        .unwrap();
+
+        assert_eq!(methods.len(), 1);
+
+        let method = &methods[0];
+        assert_eq!(method.title, "length");
+        assert_eq!(method.kind, "method");
+        assert_eq!(method.meta, json!({ "setter": true }));
     }
 }

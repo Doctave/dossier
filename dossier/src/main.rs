@@ -8,14 +8,19 @@ fn main() {
     // Remove binary name
     files.pop_front();
 
+    let mut out = vec![];
+
     for file in files {
+        if file.is_dir() {
+            continue;
+        }
         match file.extension().and_then(|s| s.to_str()) {
             Some("ts") => {
                 let parser = dossier_ts::Parser {};
 
                 match parser.parse(&file, &dossier_core::Config {}) {
-                    Ok(entities) => {
-                        println!("{}", serde_json::to_string_pretty(&entities).unwrap());
+                    Ok(mut entities) => {
+                        out.append(&mut entities);
                     }
                     Err(_e) => {
                         eprint!("Error parsing docs");
@@ -33,4 +38,6 @@ fn main() {
             }
         }
     }
+
+    println!("{}", serde_json::to_string_pretty(&out).unwrap());
 }

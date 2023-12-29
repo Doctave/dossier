@@ -2,11 +2,13 @@ use dossier_core::{Config, DocsParser, Entity, Result};
 
 use std::path::Path;
 
+mod class;
+mod field;
+mod function;
 mod interface;
 mod method;
-mod property;
-mod function;
 mod parameter;
+mod property;
 
 pub struct Parser {}
 
@@ -17,6 +19,7 @@ impl DocsParser for Parser {
         let mut out = vec![];
 
         out.append(&mut interface::parse(&code, path, config)?);
+        out.append(&mut class::parse(&code, path, config)?);
         out.append(&mut function::parse(&code, path, config)?);
 
         Ok(out)
