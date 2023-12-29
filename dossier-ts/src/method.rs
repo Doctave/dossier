@@ -56,7 +56,7 @@ pub(crate) fn parse_from_node(
             let parameter_node = node_for_capture("method_parameters", m.captures, &QUERY);
             let return_type = node_for_capture("method_return_type", m.captures, &QUERY);
 
-            let docs = find_docs(&main_node, code);
+            let docs = crate::process_comment(&find_docs(&main_node, code));
 
             let mut meta = json!({});
             let mut members = vec![];
