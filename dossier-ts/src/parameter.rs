@@ -35,42 +35,45 @@ pub(crate) fn parse_from_node(
 
 fn parse_parameter(node: &Node, code: &str, path: &Path) -> Entity {
     let identifier_node = node.child_by_field_name("pattern").unwrap();
-    let type_node = node.child_by_field_name("type").unwrap();
+    let type_node = node.child_by_field_name("type");
 
     let identifier_name = identifier_node.utf8_text(code.as_bytes()).unwrap();
-    let mut type_name = type_node.utf8_text(code.as_bytes()).unwrap();
     let mut meta = json!({});
-
-    if type_name.starts_with(':') {
-        type_name = type_name.trim_start_matches(':').trim();
-    }
+    let mut members = vec![];
 
     // TODO: More robust way to detect optional parameters
     if node.utf8_text(code.as_bytes()).unwrap().contains("?:") {
         meta["optional"] = true.into();
     }
 
-    let type_entity = Entity {
-        title: type_name.to_owned(),
-        description: "".to_string(),
-        kind: "type".to_string(),
-        members: vec![],
-        member_context: Some("type".to_string()),
-        language: "ts".to_owned(),
-        meta: json!({}),
-        source: Source {
-            file: path.to_owned(),
-            start_offset_bytes: type_node.start_byte(),
-            end_offset_bytes: type_node.end_byte(),
-            repository: None,
-        },
-    };
+    if let Some(type_node) = type_node {
+        let mut type_name = type_node.utf8_text(code.as_bytes()).unwrap();
+        if type_name.starts_with(':') {
+            type_name = type_name.trim_start_matches(':').trim();
+        }
+
+        members.push(Entity {
+            title: type_name.to_owned(),
+            description: "".to_string(),
+            kind: "type".to_string(),
+            members: vec![],
+            member_context: Some("type".to_string()),
+            language: "ts".to_owned(),
+            meta: json!({}),
+            source: Source {
+                file: path.to_owned(),
+                start_offset_bytes: type_node.start_byte(),
+                end_offset_bytes: type_node.end_byte(),
+                repository: None,
+            },
+        });
+    }
 
     Entity {
         title: identifier_name.to_owned(),
         description: "".to_string(),
         kind: "parameter".to_string(),
-        members: vec![type_entity],
+        members,
         member_context: Some("parameter".to_string()),
         language: "ts".to_owned(),
         meta,

@@ -199,6 +199,28 @@ mod test {
     }
 
     #[test]
+    fn method_parameter_without_type() {
+        let methods = nodes_in_interface_context(indoc! {r#"
+            getExpression(foo)
+        "#})
+        .unwrap();
+
+        assert_eq!(methods.len(), 1);
+
+        let method = &methods[0];
+        assert_eq!(method.title, "getExpression");
+        assert_eq!(method.kind, "method");
+
+        assert_eq!(method.members.len(), 1);
+        let parameter = method.members.first().unwrap();
+
+        assert_eq!(parameter.member_context.as_deref(), Some("parameter"));
+        assert_eq!(parameter.kind, "parameter");
+        assert_eq!(parameter.title, "foo");
+        assert_eq!(parameter.members.len(), 0);
+    }
+
+    #[test]
     fn method_with_parameters() {
         let methods = nodes_in_interface_context(indoc! {r#"
             example(foo: string, bar: number)
