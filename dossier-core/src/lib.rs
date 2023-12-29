@@ -32,6 +32,7 @@ impl Display for DossierError {
 pub type MarkdownString = String;
 
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Entity {
     /// The title for the entity. Usually the name of the class/function/module, etc.
     pub title: String,
@@ -41,18 +42,26 @@ pub struct Entity {
     /// Each language will have a different set of entities.
     pub kind: String,
     /// Child entities. E.g. classes may contain functions, modules may have child modules, etc.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub members: Vec<Entity>,
     /// What context the entity is in. E.g. a type may be describing a parameter to a function, or a return type.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub member_context: Option<String>,
     /// The language of the entity
     pub language: String,
     /// The language of the entity
     pub source: Source,
     /// Arbitrary metadata different types of entities need to store
+    #[serde(skip_serializing_if = "value_is_empty")]
     pub meta: serde_json::Value,
 }
 
+fn value_is_empty(value: &serde_json::Value) -> bool {
+    value.is_null() || value.as_object().map(|o| o.is_empty()).unwrap_or(false)
+}
+
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 /// Metadata about the source of an `Entity`
 pub struct Source {
     pub file: PathBuf,
@@ -61,6 +70,7 @@ pub struct Source {
     /// Ending offset of the entity in the source file in bytes
     pub end_offset_bytes: usize,
     /// Optional: Git repository URL for the file
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
 }
 
