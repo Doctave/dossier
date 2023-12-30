@@ -8,8 +8,8 @@ use serde::Serialize;
 use thiserror::Error;
 
 pub use indexmap;
-pub use tree_sitter;
 pub use serde_json;
+pub use tree_sitter;
 
 pub type Result<T> = std::result::Result<T, DossierError>;
 
@@ -41,6 +41,10 @@ pub struct Entity {
     /// The type of the entity. E.g. function, class, module.
     /// Each language will have a different set of entities.
     pub kind: String,
+    /// A fully qualified name for the entity. E.g. `filePath.ClassName.methodName`
+    ///
+    /// The purpose is to uniquely identify the entity across the entire codebase.
+    pub fqn: String,
     /// Child entities. E.g. classes may contain functions, modules may have child modules, etc.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub members: Vec<Entity>,
@@ -74,25 +78,80 @@ pub struct Source {
     pub repository: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 /// A config passed into parsers.
 ///
 /// Placeholder for now, but in the future could contain information
 /// about the parsing context like the current repository, etc.
-pub struct Config {}
+pub struct Context {
+    namespace: Vec<String>,
+}
+
+impl<'a> Context {
+    pub fn new() -> Self {
+        Self { namespace: vec![] }
+    }
+
+    pub fn generate_fqn<T>(&self, path: &Path, parts: T) -> String
+    where
+        T: IntoIterator<Item = &'a str>,
+    {
+        let mut fqn = format!("{}", path.display()).replace('\\', "/");
+
+        for part in &self.namespace {
+            fqn.push_str(&format!("::{}", part));
+        }
+
+        for part in parts {
+            fqn.push_str(&format!("::{}", part));
+        }
+
+        fqn
+    }
+
+    pub fn push_namespace(&mut self, namespace: &str) {
+        self.namespace.push(namespace.to_owned());
+    }
+
+    pub fn pop_namespace(&mut self) {
+        self.namespace.pop();
+    }
+}
 
 /// The trait for implementing language-specific parsers
 pub trait DocsParser {
     /// Given a pathname to an entry point, return a list of entities
-    fn parse(&self, path: &Path, config: &Config) -> Result<Vec<Entity>>;
+    fn parse(&self, path: &Path, config: &mut Context) -> Result<Vec<Entity>>;
 }
 
 pub mod helpers {
-    use tree_sitter::{QueryCapture, Query, Node};
+    use super::*;
+    use tree_sitter::{Node, Query, QueryCapture};
 
-    use crate::DossierError;
+    /// Generates a fully qualified name (FQN) from a path and a list of parts
+    ///
+    /// For example, a file src/foo/bar.ts and parts of [Interface, methodName]
+    /// would yield a FQN of `src/foo.bar/ts::Interface::methodName`
+    ///
+    /// This function is operating-system independent, and will always use `/` as the path separator.
+    pub fn generate_fqn<'a, T>(path: &Path, parts: T) -> String
+    where
+        T: IntoIterator<Item = &'a str>,
+    {
+        let mut fqn = format!("{}", path.display()).replace('\\', "/");
 
-    pub fn node_for_capture<'a>(name: &str, captures: &'a [QueryCapture<'a>], query: &Query) -> Option<Node<'a>> {
+        for part in parts {
+            fqn.push_str(&format!("::{}", part));
+        }
+
+        fqn
+    }
+
+    pub fn node_for_capture<'a>(
+        name: &str,
+        captures: &'a [QueryCapture<'a>],
+        query: &Query,
+    ) -> Option<Node<'a>> {
         query
             .capture_index_for_name(name)
             .and_then(|index| captures.iter().find(|c| c.index == index))

@@ -1,4 +1,4 @@
-use dossier_core::{serde_json::json, Config, Entity, Result, Source};
+use dossier_core::{serde_json::json, Context, Entity, Result, Source};
 use tree_sitter::Node;
 
 use std::path::Path;
@@ -12,7 +12,7 @@ pub(crate) fn parse_from_node(
     node: &Node,
     path: &Path,
     code: &str,
-    _config: &Config,
+    _config: &Context,
 ) -> Result<Vec<Entity>> {
     let mut members = vec![];
 
@@ -56,6 +56,7 @@ fn parse_parameter(node: &Node, code: &str, path: &Path) -> Entity {
             title: type_name.to_owned(),
             description: "".to_string(),
             kind: "type".to_string(),
+            fqn: "TODO".to_string(),
             members: vec![],
             member_context: Some("type".to_string()),
             language: "ts".to_owned(),
@@ -73,6 +74,7 @@ fn parse_parameter(node: &Node, code: &str, path: &Path) -> Entity {
         title: identifier_name.to_owned(),
         description: "".to_string(),
         kind: "parameter".to_string(),
+        fqn: "TODO".to_string(),
         members,
         member_context: Some("parameter".to_string()),
         language: "ts".to_owned(),

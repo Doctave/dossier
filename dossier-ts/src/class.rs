@@ -1,11 +1,11 @@
 use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
-use dossier_core::{helpers::*, serde_json::json, Config, Entity, Result, Source};
+use dossier_core::{helpers::*, serde_json::json, Context, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
 use std::path::Path;
 
-use crate::{field, method, property};
+use crate::{field, method};
 
 const QUERY_STRING: &str = indoc! {"
       [
@@ -27,7 +27,7 @@ lazy_static! {
         Query::new(tree_sitter_typescript::language_typescript(), QUERY_STRING).unwrap();
 }
 
-pub(crate) fn parse(code: &str, path: &Path, config: &Config) -> Result<Vec<Entity>> {
+pub(crate) fn parse(code: &str, path: &Path, ctx: &mut Context) -> Result<Vec<Entity>> {
     let mut parser = Parser::new();
 
     parser
@@ -36,14 +36,14 @@ pub(crate) fn parse(code: &str, path: &Path, config: &Config) -> Result<Vec<Enti
 
     let tree = parser.parse(code.clone(), None).unwrap();
 
-    parse_from_node(tree.root_node(), path, code, config)
+    parse_from_node(tree.root_node(), path, code, ctx)
 }
 
 pub(crate) fn parse_from_node(
     node: Node,
     path: &Path,
     code: &str,
-    config: &Config,
+    ctx: &mut Context,
 ) -> Result<Vec<Entity>> {
     let mut cursor = QueryCursor::new();
     let matches = cursor.matches(&QUERY, node, code.as_bytes());
@@ -59,13 +59,14 @@ pub(crate) fn parse_from_node(
 
             let mut members = vec![];
 
-            members.append(&mut field::parse_from_node(body_node, path, code, config).unwrap());
-            members.append(&mut method::parse_from_node(body_node, path, code, config).unwrap());
+            members.append(&mut field::parse_from_node(body_node, path, code, ctx).unwrap());
+            members.append(&mut method::parse_from_node(body_node, path, code, ctx).unwrap());
 
             Entity {
                 title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
                 description: docs.unwrap_or(String::new()),
                 kind: "class".to_string(),
+                fqn: "TODO".to_string(),
                 language: "ts".to_owned(),
                 meta: json!({}),
                 members,
@@ -122,7 +123,7 @@ mod test {
         }
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
+        let result = parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         assert_eq!(result.len(), 1);
         let class = &result[0];
 

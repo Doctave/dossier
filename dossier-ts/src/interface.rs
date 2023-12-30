@@ -1,5 +1,5 @@
 use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
-use dossier_core::{helpers::*, serde_json::json, Config, Entity, Result, Source};
+use dossier_core::{helpers::*, serde_json::json, Context, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
@@ -19,7 +19,7 @@ lazy_static! {
         Query::new(tree_sitter_typescript::language_typescript(), QUERY_STRING).unwrap();
 }
 
-pub(crate) fn parse(code: &str, path: &Path, config: &Config) -> Result<Vec<Entity>> {
+pub(crate) fn parse(code: &str, path: &Path, ctx: &mut Context) -> Result<Vec<Entity>> {
     let mut parser = Parser::new();
 
     parser
@@ -28,14 +28,14 @@ pub(crate) fn parse(code: &str, path: &Path, config: &Config) -> Result<Vec<Enti
 
     let tree = parser.parse(code.clone(), None).unwrap();
 
-    parse_from_node(tree.root_node(), path, code, config)
+    parse_from_node(tree.root_node(), path, code, ctx)
 }
 
 pub(crate) fn parse_from_node(
     node: Node,
     path: &Path,
     code: &str,
-    config: &Config,
+    ctx: &mut Context,
 ) -> Result<Vec<Entity>> {
     let mut cursor = QueryCursor::new();
     let matches = cursor.matches(&QUERY, node, code.as_bytes());
@@ -58,13 +58,19 @@ pub(crate) fn parse_from_node(
             let interface_docs = find_docs(main_node, code).map(crate::process_comment);
 
             let mut members = vec![];
-            members.append(&mut property::parse_from_node(main_node, path, code, config).unwrap());
-            members.append(&mut method::parse_from_node(main_node, path, code, config).unwrap());
+
+            ctx.push_namespace(interface_name);
+
+            members.append(&mut property::parse_from_node(main_node, path, code, ctx).unwrap());
+            members.append(&mut method::parse_from_node(main_node, path, code, ctx).unwrap());
+
+            ctx.pop_namespace();
 
             Entity {
                 title: format!("{}{}", interface_name, type_parameters),
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "interface".to_string(),
+                fqn: generate_fqn(path, [interface_name]),
                 members,
                 member_context: Some("interface".to_string()),
                 language: "ts".to_owned(),
@@ -113,7 +119,7 @@ mod test {
         interface TheExportedInterface {}
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
+        let result = parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         assert_eq!(result.len(), 1);
         let interface = &result[0];
 
@@ -144,7 +150,7 @@ mod test {
         export interface Interface4 {}
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
+        let result = parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         println!("{:#?}", result);
         assert_eq!(result.len(), 4);
         let interface = &result[0];
@@ -185,7 +191,7 @@ mod test {
         }
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
+        let result = parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         assert_eq!(result.len(), 1);
         let interface = &result[0];
 
@@ -213,7 +219,7 @@ mod test {
         }
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
+        let result = parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         assert_eq!(result.len(), 1);
         let interface = &result[0];
 
@@ -231,5 +237,22 @@ mod test {
         assert_eq!(return_type.member_context.as_deref(), Some("returnType"));
         assert_eq!(return_type.kind, "type");
         assert_eq!(return_type.title, "AliasNode");
+    }
+
+    #[test]
+    fn computes_a_fqn() {
+        let code = indoc! { r#"
+        interface ExampleInterface {
+          exampleMethod(): ExampleType
+        }
+        "#};
+
+        let result = parse(code, Path::new("src/example.ts"), &mut Context::new()).expect("Failed to parse code");
+        assert_eq!(result.len(), 1);
+        let interface = &result[0];
+
+        assert_eq!(interface.fqn, "src/example.ts::ExampleInterface");
+
+        assert_eq!(interface.members[0].fqn, "src/example.ts::ExampleInterface::exampleMethod");
     }
 }

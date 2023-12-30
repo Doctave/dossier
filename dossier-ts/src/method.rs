@@ -1,7 +1,7 @@
 use crate::parameter;
 use dossier_core::serde_json::json;
 use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
-use dossier_core::{helpers::*, Config, Entity, Result, Source};
+use dossier_core::{helpers::*, Context, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
@@ -27,7 +27,7 @@ lazy_static! {
         Query::new(tree_sitter_typescript::language_typescript(), QUERY_STRING).unwrap();
 }
 
-pub(crate) fn parse(code: &str, path: &Path, config: &Config) -> Result<Vec<Entity>> {
+pub(crate) fn parse(code: &str, path: &Path, config: &mut Context) -> Result<Vec<Entity>> {
     let mut parser = Parser::new();
 
     parser
@@ -43,7 +43,7 @@ pub(crate) fn parse_from_node(
     node: Node,
     path: &Path,
     code: &str,
-    _config: &Config,
+    ctx: &mut Context,
 ) -> Result<Vec<Entity>> {
     let mut cursor = QueryCursor::new();
     let matches = cursor.matches(&QUERY, node, code.as_bytes());
@@ -72,6 +72,7 @@ pub(crate) fn parse_from_node(
                     title,
                     description: "".to_string(),
                     kind: "type".to_string(),
+                    fqn: "TODO".to_string(),
                     members: vec![],
                     member_context: Some("returnType".to_string()),
                     language: "ts".to_owned(),
@@ -103,16 +104,19 @@ pub(crate) fn parse_from_node(
                 meta["setter"] = true.into();
             }
 
+            let title = name_node.utf8_text(code.as_bytes()).unwrap().to_owned();
+            let fqn = ctx.generate_fqn(path, [title.as_str()]);
+
             if let Some(parameters) = parameter_node {
-                members.append(
-                    &mut parameter::parse_from_node(&parameters, path, code, &Config {}).unwrap(),
-                );
+                members
+                    .append(&mut parameter::parse_from_node(&parameters, path, code, ctx).unwrap());
             }
 
             Entity {
-                title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
+                title,
                 description: docs,
                 kind: "method".to_string(),
+                fqn,
                 members,
                 member_context: Some("method".to_string()),
                 language: "ts".to_owned(),
@@ -173,7 +177,7 @@ mod test {
         let root =
             node_for_capture("interface_body", parent_captures, &crate::interface::QUERY).unwrap();
 
-        parse_from_node(root, Path::new("index.ts"), &context, &Config {})
+        parse_from_node(root, Path::new("index.ts"), &context, &mut Context::new())
     }
 
     #[test]

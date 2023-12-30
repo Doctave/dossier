@@ -1,6 +1,6 @@
 use dossier_core::serde_json::json;
 use dossier_core::tree_sitter::{Node, Query, QueryCursor};
-use dossier_core::{helpers::*, Config, Entity, Result, Source};
+use dossier_core::{helpers::*, Context, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
@@ -22,7 +22,7 @@ pub(crate) fn parse_from_node(
     node: Node,
     path: &Path,
     code: &str,
-    _config: &Config,
+    _config: &Context,
 ) -> Result<Vec<Entity>> {
     let mut cursor = QueryCursor::new();
     let matches = cursor.matches(&QUERY, node, code.as_bytes());
@@ -58,6 +58,7 @@ pub(crate) fn parse_from_node(
                 title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "property".to_string(),
+                fqn: "TODO".to_string(),
                 members,
                 member_context: Some("property".to_string()),
                 language: "ts".to_owned(),
@@ -78,6 +79,7 @@ fn parse_type(node: &Node, code: &str, path: &Path) -> Entity {
         title: node.utf8_text(code.as_bytes()).unwrap().to_owned(),
         description: "".to_string(),
         kind: "type".to_string(),
+        fqn: "TODO".to_string(),
         members: vec![],
         member_context: Some("type".to_string()),
         language: "ts".to_owned(),
@@ -158,7 +160,7 @@ mod test {
         let root =
             node_for_capture("interface_body", parent_captures, &crate::interface::QUERY).unwrap();
 
-        let properties = parse_from_node(root, Path::new("index.ts"), code, &Config {}).unwrap();
+        let properties = parse_from_node(root, Path::new("index.ts"), code, &Context::new()).unwrap();
 
         assert_eq!(properties.len(), 3);
 

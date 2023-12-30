@@ -1,11 +1,9 @@
-use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
-use dossier_core::{helpers::*, serde_json::json, Config, Entity, Result, Source};
+use dossier_core::tree_sitter::{Node, Query, QueryCursor};
+use dossier_core::{helpers::*, serde_json::json, Context, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
 use std::path::Path;
-
-use crate::{method, property};
 
 const QUERY_STRING: &str = indoc! {"
       (public_field_definition
@@ -25,7 +23,7 @@ pub(crate) fn parse_from_node(
     node: Node,
     path: &Path,
     code: &str,
-    config: &Config,
+    ctx: &Context,
 ) -> Result<Vec<Entity>> {
     let mut cursor = QueryCursor::new();
     let matches = cursor.matches(&QUERY, node, code.as_bytes());
@@ -68,6 +66,7 @@ pub(crate) fn parse_from_node(
                 title: type_name.to_string(),
                 description: "".to_string(),
                 kind: "type".to_string(),
+                fqn: "TODO".to_string(),
                 members: vec![],
                 member_context: Some("type".to_string()),
                 language: "ts".to_owned(),
@@ -84,6 +83,7 @@ pub(crate) fn parse_from_node(
                 title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
                 description: "".to_owned(),
                 kind: "field".to_string(),
+                fqn: "TODO".to_string(),
                 members: vec![type_entity],
                 member_context: None,
                 language: "ts".to_string(),
@@ -133,7 +133,7 @@ mod test {
 
         let root = node_for_capture("class_body", parent_captures, &crate::class::QUERY).unwrap();
 
-        parse_from_node(root, Path::new("index.ts"), &context, &Config {})
+        parse_from_node(root, Path::new("index.ts"), &context, &Context::new())
     }
 
     #[test]

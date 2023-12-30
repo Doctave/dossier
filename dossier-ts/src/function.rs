@@ -1,5 +1,5 @@
 use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
-use dossier_core::{helpers::*, serde_json::json, Config, Entity, Result, Source};
+use dossier_core::{helpers::*, serde_json::json, Context, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
@@ -20,7 +20,7 @@ lazy_static! {
         Query::new(tree_sitter_typescript::language_typescript(), QUERY_STRING).unwrap();
 }
 
-pub(crate) fn parse(code: &str, path: &Path, config: &Config) -> Result<Vec<Entity>> {
+pub(crate) fn parse(code: &str, path: &Path, config: &Context) -> Result<Vec<Entity>> {
     let mut parser = Parser::new();
 
     parser
@@ -36,7 +36,7 @@ pub(crate) fn parse_from_node(
     node: Node,
     path: &Path,
     code: &str,
-    _config: &Config,
+    _config: &Context,
 ) -> Result<Vec<Entity>> {
     let mut cursor = QueryCursor::new();
     let matches = cursor.matches(&QUERY, node, code.as_bytes());
@@ -65,6 +65,7 @@ pub(crate) fn parse_from_node(
                     title,
                     description: "".to_string(),
                     kind: "type".to_string(),
+                    fqn: "TODO".to_string(),
                     members: vec![],
                     member_context: Some("returnType".to_string()),
                     language: "ts".to_owned(),
@@ -79,18 +80,16 @@ pub(crate) fn parse_from_node(
             }
 
             if let Some(parameters) = parameter_node {
-                members.append(&mut parameter::parse_from_node(
-                    &parameters,
-                    path,
-                    code,
-                    &Config {},
-                ).unwrap());
+                members.append(
+                    &mut parameter::parse_from_node(&parameters, path, code, &Context::new()).unwrap(),
+                );
             }
 
             Entity {
                 title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
                 description: docs.map(|s| s.to_owned()).unwrap_or("".to_string()),
                 kind: "function".to_string(),
+                fqn: "TODO".to_string(),
                 members,
                 member_context: None,
                 language: "ts".to_owned(),
@@ -127,8 +126,8 @@ fn find_docs<'a>(node: &Node<'a>, code: &'a str) -> Option<&'a str> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use indoc::indoc;
     use dossier_core::serde_json::Value;
+    use indoc::indoc;
 
     #[test]
     fn parses_function() {
@@ -141,18 +140,26 @@ mod test {
         }
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &Config {}).expect("Failed to parse code");
+        let result = parse(code, Path::new("index.ts"), &Context::new()).expect("Failed to parse code");
         assert_eq!(result.len(), 1);
 
         let function = &result[0];
         assert_eq!(function.title, "example");
         assert_eq!(function.kind, "function");
 
-        let return_type = &function.members.iter().find(|m| m.member_context == Some("returnType".to_string())).unwrap();
+        let return_type = &function
+            .members
+            .iter()
+            .find(|m| m.member_context == Some("returnType".to_string()))
+            .unwrap();
         assert_eq!(return_type.title, "boolean");
         assert_eq!(return_type.kind, "type");
 
-        let parameters = &function.members.iter().filter(|m| m.member_context == Some("parameter".to_string())).collect::<Vec<_>>();
+        let parameters = &function
+            .members
+            .iter()
+            .filter(|m| m.member_context == Some("parameter".to_string()))
+            .collect::<Vec<_>>();
         assert_eq!(parameters.len(), 2);
 
         let foo = &parameters[0];

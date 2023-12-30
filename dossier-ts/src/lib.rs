@@ -1,4 +1,4 @@
-use dossier_core::{Config, DocsParser, Entity, Result};
+use dossier_core::{Context, DocsParser, Entity, Result};
 
 use std::path::Path;
 
@@ -13,14 +13,14 @@ mod property;
 pub struct Parser {}
 
 impl DocsParser for Parser {
-    fn parse(&self, path: &Path, config: &Config) -> Result<Vec<Entity>> {
+    fn parse(&self, path: &Path, ctx: &mut Context) -> Result<Vec<Entity>> {
         let code = std::fs::read_to_string(path).unwrap();
 
         let mut out = vec![];
 
-        out.append(&mut interface::parse(&code, path, config)?);
-        out.append(&mut class::parse(&code, path, config)?);
-        out.append(&mut function::parse(&code, path, config)?);
+        out.append(&mut interface::parse(&code, path, ctx)?);
+        out.append(&mut class::parse(&code, path, ctx)?);
+        out.append(&mut function::parse(&code, path, ctx)?);
 
         Ok(out)
     }

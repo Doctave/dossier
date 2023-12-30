@@ -27,7 +27,7 @@ fn main() {
                         Some("ts") => {
                             let parser = dossier_ts::Parser {};
 
-                            match parser.parse(&file, &dossier_core::Config {}) {
+                            match parser.parse(&file, &mut dossier_core::Context::new()) {
                                 Ok(mut entities) => {
                                     out.append(&mut entities);
                                     processed_files.push(file);
