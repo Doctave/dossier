@@ -79,11 +79,14 @@ pub(crate) fn parse_from_node(
                 },
             };
 
+            let title = name_node.utf8_text(code.as_bytes()).unwrap().to_owned();
+            let fqn = ctx.generate_fqn(path, [title.as_str()]);
+
             Entity {
-                title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
+                title,
                 description: "".to_owned(),
                 kind: "field".to_string(),
-                fqn: "TODO".to_string(),
+                fqn,
                 members: vec![type_entity],
                 member_context: None,
                 language: "ts".to_string(),

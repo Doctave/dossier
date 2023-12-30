@@ -22,7 +22,7 @@ pub(crate) fn parse_from_node(
     node: Node,
     path: &Path,
     code: &str,
-    _config: &Context,
+    ctx: &mut Context,
 ) -> Result<Vec<Entity>> {
     let mut cursor = QueryCursor::new();
     let matches = cursor.matches(&QUERY, node, code.as_bytes());
@@ -54,11 +54,14 @@ pub(crate) fn parse_from_node(
                 meta["optional"] = true.into();
             }
 
+            let title = name_node.utf8_text(code.as_bytes()).unwrap().to_owned();
+            let fqn = ctx.generate_fqn(path, [title.as_str()]);
+
             Entity {
-                title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
+                title,
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "property".to_string(),
-                fqn: "TODO".to_string(),
+                fqn,
                 members,
                 member_context: Some("property".to_string()),
                 language: "ts".to_owned(),
@@ -160,7 +163,8 @@ mod test {
         let root =
             node_for_capture("interface_body", parent_captures, &crate::interface::QUERY).unwrap();
 
-        let properties = parse_from_node(root, Path::new("index.ts"), code, &Context::new()).unwrap();
+        let properties =
+            parse_from_node(root, Path::new("index.ts"), code, &mut Context::new()).unwrap();
 
         assert_eq!(properties.len(), 3);
 

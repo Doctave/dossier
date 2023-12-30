@@ -70,7 +70,7 @@ pub(crate) fn parse_from_node(
                 title: format!("{}{}", interface_name, type_parameters),
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "interface".to_string(),
-                fqn: generate_fqn(path, [interface_name]),
+                fqn: ctx.generate_fqn(path, [interface_name]),
                 members,
                 member_context: Some("interface".to_string()),
                 language: "ts".to_owned(),
@@ -240,9 +240,11 @@ mod test {
     }
 
     #[test]
-    fn computes_a_fqn() {
+    fn computes_fqns() {
         let code = indoc! { r#"
         interface ExampleInterface {
+          label: string,
+
           exampleMethod(): ExampleType
         }
         "#};
@@ -253,6 +255,7 @@ mod test {
 
         assert_eq!(interface.fqn, "src/example.ts::ExampleInterface");
 
-        assert_eq!(interface.members[0].fqn, "src/example.ts::ExampleInterface::exampleMethod");
+        assert_eq!(interface.members[0].fqn, "src/example.ts::ExampleInterface::label");
+        assert_eq!(interface.members[1].fqn, "src/example.ts::ExampleInterface::exampleMethod");
     }
 }

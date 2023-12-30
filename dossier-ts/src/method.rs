@@ -1,6 +1,6 @@
 use crate::parameter;
 use dossier_core::serde_json::json;
-use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
+use dossier_core::tree_sitter::{Node, Query, QueryCursor};
 use dossier_core::{helpers::*, Context, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
@@ -25,18 +25,6 @@ const QUERY_STRING: &str = indoc! {"
 lazy_static! {
     static ref QUERY: Query =
         Query::new(tree_sitter_typescript::language_typescript(), QUERY_STRING).unwrap();
-}
-
-pub(crate) fn parse(code: &str, path: &Path, config: &mut Context) -> Result<Vec<Entity>> {
-    let mut parser = Parser::new();
-
-    parser
-        .set_language(tree_sitter_typescript::language_typescript())
-        .expect("Error loading Rust grammar");
-
-    let tree = parser.parse(code.clone(), None).unwrap();
-
-    parse_from_node(tree.root_node(), path, code, config)
 }
 
 pub(crate) fn parse_from_node(

@@ -92,6 +92,14 @@ impl<'a> Context {
         Self { namespace: vec![] }
     }
 
+    /// Generates a fully qualified name (FQN) from a path, the current namespace,
+    /// and a list of parts
+    ///
+    /// For example, a file src/foo/bar.ts and parts of [Interface, methodName]
+    /// would yield a FQN of `src/foo.bar/ts::Interface::methodName`
+    ///
+    /// This function is operating-system independent, and will always use `/` as
+    /// the path separator.
     pub fn generate_fqn<T>(&self, path: &Path, parts: T) -> String
     where
         T: IntoIterator<Item = &'a str>,
@@ -127,25 +135,6 @@ pub trait DocsParser {
 pub mod helpers {
     use super::*;
     use tree_sitter::{Node, Query, QueryCapture};
-
-    /// Generates a fully qualified name (FQN) from a path and a list of parts
-    ///
-    /// For example, a file src/foo/bar.ts and parts of [Interface, methodName]
-    /// would yield a FQN of `src/foo.bar/ts::Interface::methodName`
-    ///
-    /// This function is operating-system independent, and will always use `/` as the path separator.
-    pub fn generate_fqn<'a, T>(path: &Path, parts: T) -> String
-    where
-        T: IntoIterator<Item = &'a str>,
-    {
-        let mut fqn = format!("{}", path.display()).replace('\\', "/");
-
-        for part in parts {
-            fqn.push_str(&format!("::{}", part));
-        }
-
-        fqn
-    }
 
     pub fn node_for_capture<'a>(
         name: &str,

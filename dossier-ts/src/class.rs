@@ -59,14 +59,22 @@ pub(crate) fn parse_from_node(
 
             let mut members = vec![];
 
+            let title = name_node.utf8_text(code.as_bytes()).unwrap().to_owned();
+
+            ctx.push_namespace(&title);
+
             members.append(&mut field::parse_from_node(body_node, path, code, ctx).unwrap());
             members.append(&mut method::parse_from_node(body_node, path, code, ctx).unwrap());
 
+            ctx.pop_namespace();
+
+            let fqn = ctx.generate_fqn(path, [title.as_str()]);
+
             Entity {
-                title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
+                title,
                 description: docs.unwrap_or(String::new()),
                 kind: "class".to_string(),
-                fqn: "TODO".to_string(),
+                fqn,
                 language: "ts".to_owned(),
                 meta: json!({}),
                 members,
@@ -123,7 +131,8 @@ mod test {
         }
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
+        let result =
+            parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         assert_eq!(result.len(), 1);
         let class = &result[0];
 
@@ -171,5 +180,31 @@ mod test {
         assert_eq!(field.title, "greeting");
         assert_eq!(field.members[0].title, "string");
         assert_eq!(field.members[0].kind, "type");
+    }
+
+    #[test]
+    fn computes_a_fqn() {
+        let code = indoc! { r#"
+        class Greeter {
+          greeting: string;
+         
+          greet() {
+            return "Hello, " + this.greeting;
+          }
+        }
+        "#};
+
+        let result = parse(code, Path::new("src/example.ts"), &mut Context::new())
+            .expect("Failed to parse code");
+        assert_eq!(result.len(), 1);
+        let interface = &result[0];
+
+        assert_eq!(interface.fqn, "src/example.ts::Greeter");
+
+        assert_eq!(
+            interface.members[0].fqn,
+            "src/example.ts::Greeter::greeting"
+        );
+        assert_eq!(interface.members[1].fqn, "src/example.ts::Greeter::greet");
     }
 }
