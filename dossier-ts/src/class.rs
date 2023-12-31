@@ -1,5 +1,5 @@
 use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
-use dossier_core::{helpers::*, serde_json::json, Context, Entity, Result, Source};
+use dossier_core::{helpers::*, serde_json::json, Context, Entity, Identity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
@@ -74,7 +74,7 @@ pub(crate) fn parse_from_node(
                 title,
                 description: docs.unwrap_or(String::new()),
                 kind: "class".to_string(),
-                fqn,
+                identity: Identity::FQN(fqn),
                 language: "ts".to_owned(),
                 meta: json!({}),
                 members,
@@ -199,12 +199,18 @@ mod test {
         assert_eq!(result.len(), 1);
         let interface = &result[0];
 
-        assert_eq!(interface.fqn, "src/example.ts::Greeter");
+        assert_eq!(
+            interface.identity,
+            Identity::FQN("src/example.ts::Greeter".to_owned())
+        );
 
         assert_eq!(
-            interface.members[0].fqn,
-            "src/example.ts::Greeter::greeting"
+            interface.members[0].identity,
+            Identity::FQN("src/example.ts::Greeter::greeting".to_owned())
         );
-        assert_eq!(interface.members[1].fqn, "src/example.ts::Greeter::greet");
+        assert_eq!(
+            interface.members[1].identity,
+            Identity::FQN("src/example.ts::Greeter::greet".to_owned())
+        );
     }
 }

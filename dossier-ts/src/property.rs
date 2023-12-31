@@ -1,6 +1,6 @@
 use dossier_core::serde_json::json;
 use dossier_core::tree_sitter::{Node, Query, QueryCursor};
-use dossier_core::{helpers::*, Context, Entity, Result, Source};
+use dossier_core::{helpers::*, Context, Entity, Identity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
@@ -61,7 +61,7 @@ pub(crate) fn parse_from_node(
                 title,
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "property".to_string(),
-                fqn,
+                identity: Identity::FQN(fqn),
                 members,
                 member_context: Some("property".to_string()),
                 language: "ts".to_owned(),
@@ -82,7 +82,7 @@ fn parse_type(node: &Node, code: &str, path: &Path) -> Entity {
         title: node.utf8_text(code.as_bytes()).unwrap().to_owned(),
         description: "".to_string(),
         kind: "type".to_string(),
-        fqn: "TODO".to_string(),
+        identity: Identity::FQN("TODO".to_string()),
         members: vec![],
         member_context: Some("type".to_string()),
         language: "ts".to_owned(),

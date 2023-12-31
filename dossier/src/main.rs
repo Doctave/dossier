@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -12,52 +13,49 @@ fn main() {
     // Remove binary name
     files.pop_front();
 
+    let mut input_files = vec![];
     let mut out = vec![];
-    let mut processed_files = vec![];
 
     for file in files {
         for entry in glob(&file).expect("Failed to read glob pattern") {
             match entry {
                 Ok(path) => {
                     let file = PathBuf::from(&path);
-                    if file.is_dir() {
+                    if file.is_file() {
                         continue;
                     }
-                    match file.extension().and_then(|s| s.to_str()) {
-                        Some("ts") => {
-                            let parser = dossier_ts::Parser {};
 
-                            match parser.parse(&file, &mut dossier_core::Context::new()) {
-                                Ok(mut entities) => {
-                                    out.append(&mut entities);
-                                    processed_files.push(file);
-                                }
-                                Err(_e) => {
-                                    eprint!("Error parsing docs");
-                                    std::process::exit(1);
-                                }
-                            }
-                        }
-                        Some(unknown) => {
-                            println!("Unsupported language `{}`", unknown);
-                            std::process::exit(1);
-                        }
-                        None => {
-                            println!("File missing extension");
-                            std::process::exit(1);
-                        }
-                    }
+                    input_files.push(file);
                 }
                 Err(e) => println!("{:?}", e),
             }
         }
     }
+
+    let typescript_files = input_files
+        .iter()
+        .filter(|f| f.extension() == Some(OsStr::new(".ts")))
+        .map(|p| p.as_path())
+        .collect::<Vec<_>>();
+
+    let parser = dossier_ts::Parser::default();
+
+    match parser.parse(typescript_files, &mut dossier_core::Context::new()) {
+        Ok(mut entities) => {
+            out.append(&mut entities);
+        }
+        Err(_e) => {
+            eprint!("Error parsing docs");
+            std::process::exit(1);
+        }
+    }
+
     let duration = start.elapsed();
 
     println!("{}", serde_json::to_string_pretty(&out).unwrap());
     eprintln!(
         "Processed {} files in {}",
-        processed_files.len(),
+        input_files.len(),
         pretty_duration::pretty_duration(&duration, None)
     );
 }

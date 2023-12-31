@@ -1,5 +1,5 @@
 use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
-use dossier_core::{helpers::*, serde_json::json, Context, Entity, Result, Source};
+use dossier_core::{helpers::*, serde_json::json, Context, Entity, Identity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
@@ -70,7 +70,7 @@ pub(crate) fn parse_from_node(
                 title: format!("{}{}", interface_name, type_parameters),
                 description: interface_docs.unwrap_or("".to_owned()),
                 kind: "interface".to_string(),
-                fqn: ctx.generate_fqn(path, [interface_name]),
+                identity: Identity::FQN(ctx.generate_fqn(path, [interface_name])),
                 members,
                 member_context: Some("interface".to_string()),
                 language: "ts".to_owned(),
@@ -119,7 +119,8 @@ mod test {
         interface TheExportedInterface {}
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
+        let result =
+            parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         assert_eq!(result.len(), 1);
         let interface = &result[0];
 
@@ -150,7 +151,8 @@ mod test {
         export interface Interface4 {}
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
+        let result =
+            parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         println!("{:#?}", result);
         assert_eq!(result.len(), 4);
         let interface = &result[0];
@@ -191,7 +193,8 @@ mod test {
         }
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
+        let result =
+            parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         assert_eq!(result.len(), 1);
         let interface = &result[0];
 
@@ -219,7 +222,8 @@ mod test {
         }
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
+        let result =
+            parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         assert_eq!(result.len(), 1);
         let interface = &result[0];
 
@@ -249,13 +253,23 @@ mod test {
         }
         "#};
 
-        let result = parse(code, Path::new("src/example.ts"), &mut Context::new()).expect("Failed to parse code");
+        let result = parse(code, Path::new("src/example.ts"), &mut Context::new())
+            .expect("Failed to parse code");
         assert_eq!(result.len(), 1);
         let interface = &result[0];
 
-        assert_eq!(interface.fqn, "src/example.ts::ExampleInterface");
+        assert_eq!(
+            interface.identity,
+            Identity::FQN("src/example.ts::ExampleInterface".to_owned())
+        );
 
-        assert_eq!(interface.members[0].fqn, "src/example.ts::ExampleInterface::label");
-        assert_eq!(interface.members[1].fqn, "src/example.ts::ExampleInterface::exampleMethod");
+        assert_eq!(
+            interface.members[0].identity,
+            Identity::FQN("src/example.ts::ExampleInterface::label".to_owned())
+        );
+        assert_eq!(
+            interface.members[1].identity,
+            Identity::FQN("src/example.ts::ExampleInterface::exampleMethod".to_owned())
+        );
     }
 }

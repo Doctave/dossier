@@ -30,8 +30,17 @@ impl Display for DossierError {
 }
 
 pub type MarkdownString = String;
+pub type FullyQualifiedName = String;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub enum Identity {
+    /// The fully qualified name of an entity
+    FQN(FullyQualifiedName),
+    /// A reference to another entity via its fully qualified name
+    Reference(FullyQualifiedName),
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Entity {
     /// The title for the entity. Usually the name of the class/function/module, etc.
@@ -41,10 +50,12 @@ pub struct Entity {
     /// The type of the entity. E.g. function, class, module.
     /// Each language will have a different set of entities.
     pub kind: String,
-    /// A fully qualified name for the entity. E.g. `filePath.ClassName.methodName`
+    /// The identity of the entity: either its fully qualified name, or a reference to another entity
+    /// via its fully qualified name.
     ///
-    /// The purpose is to uniquely identify the entity across the entire codebase.
-    pub fqn: String,
+    /// E.g. a class declaration will have an identity of its fully qualified name, but a
+    /// function's return position will have an reference to another entity that describes its type.
+    pub identity: Identity,
     /// Child entities. E.g. classes may contain functions, modules may have child modules, etc.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub members: Vec<Entity>,
@@ -64,7 +75,7 @@ fn value_is_empty(value: &serde_json::Value) -> bool {
     value.is_null() || value.as_object().map(|o| o.is_empty()).unwrap_or(false)
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 /// Metadata about the source of an `Entity`
 pub struct Source {
@@ -129,7 +140,40 @@ impl<'a> Context {
 /// The trait for implementing language-specific parsers
 pub trait DocsParser {
     /// Given a pathname to an entry point, return a list of entities
-    fn parse(&self, path: &Path, config: &mut Context) -> Result<Vec<Entity>>;
+    fn parse<'a, P: Into<&'a Path>, T: IntoIterator<Item = P>>(
+        &self,
+        paths: T,
+        ctx: &mut Context,
+    ) -> Result<Vec<Entity>>;
+}
+
+pub trait FileSource {
+    fn read_file<'a, P: Into<&'a Path>>(&self, path: P) -> std::io::Result<String>;
+}
+
+pub struct FileSystem;
+
+impl FileSource for FileSystem {
+    fn read_file<'a, P: Into<&'a Path>>(&self, path: P) -> std::io::Result<String> {
+        std::fs::read_to_string(path.into())
+    }
+}
+
+pub struct InMemoryFileSystem {
+    pub files: indexmap::IndexMap<PathBuf, String>,
+}
+
+impl FileSource for InMemoryFileSystem {
+    fn read_file<'a, P: Into<&'a Path>>(&self, path: P) -> std::io::Result<String> {
+        let path: &Path = path.into();
+        self.files
+            .get(path)
+            .map(|s| s.to_owned())
+            .ok_or(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("File not found: {}", path.display()),
+            ))
+    }
 }
 
 pub mod helpers {

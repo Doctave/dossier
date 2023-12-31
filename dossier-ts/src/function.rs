@@ -1,4 +1,5 @@
 use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
+use dossier_core::Identity;
 use dossier_core::{helpers::*, serde_json::json, Context, Entity, Result, Source};
 use indoc::indoc;
 use lazy_static::lazy_static;
@@ -20,7 +21,7 @@ lazy_static! {
         Query::new(tree_sitter_typescript::language_typescript(), QUERY_STRING).unwrap();
 }
 
-pub(crate) fn parse(code: &str, path: &Path, config: &Context) -> Result<Vec<Entity>> {
+pub(crate) fn parse(code: &str, path: &Path, ctx: &mut Context) -> Result<Vec<Entity>> {
     let mut parser = Parser::new();
 
     parser
@@ -29,14 +30,14 @@ pub(crate) fn parse(code: &str, path: &Path, config: &Context) -> Result<Vec<Ent
 
     let tree = parser.parse(code.clone(), None).unwrap();
 
-    parse_from_node(tree.root_node(), path, code, config)
+    parse_from_node(tree.root_node(), path, code, ctx)
 }
 
 pub(crate) fn parse_from_node(
     node: Node,
     path: &Path,
     code: &str,
-    _config: &Context,
+    ctx: &mut Context,
 ) -> Result<Vec<Entity>> {
     let mut cursor = QueryCursor::new();
     let matches = cursor.matches(&QUERY, node, code.as_bytes());
@@ -55,33 +56,13 @@ pub(crate) fn parse_from_node(
             let mut members = vec![];
 
             if let Some(return_type) = return_type {
-                let title = return_type
-                    .utf8_text(code.as_bytes())
-                    .unwrap()
-                    .trim_start_matches(": ")
-                    .to_owned();
-
-                members.push(Entity {
-                    title,
-                    description: "".to_string(),
-                    kind: "type".to_string(),
-                    fqn: "TODO".to_string(),
-                    members: vec![],
-                    member_context: Some("returnType".to_string()),
-                    language: "ts".to_owned(),
-                    meta: json!({}),
-                    source: Source {
-                        file: path.to_owned(),
-                        start_offset_bytes: return_type.start_byte(),
-                        end_offset_bytes: return_type.end_byte(),
-                        repository: None,
-                    },
-                });
+                members.push(parse_return_type(&return_type, path, code, ctx));
             }
 
             if let Some(parameters) = parameter_node {
                 members.append(
-                    &mut parameter::parse_from_node(&parameters, path, code, &Context::new()).unwrap(),
+                    &mut parameter::parse_from_node(&parameters, path, code, &Context::new())
+                        .unwrap(),
                 );
             }
 
@@ -89,7 +70,7 @@ pub(crate) fn parse_from_node(
                 title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
                 description: docs.map(|s| s.to_owned()).unwrap_or("".to_string()),
                 kind: "function".to_string(),
-                fqn: "TODO".to_string(),
+                identity: Identity::FQN("TODO".to_string()),
                 members,
                 member_context: None,
                 language: "ts".to_owned(),
@@ -103,6 +84,31 @@ pub(crate) fn parse_from_node(
             }
         })
         .collect::<Vec<_>>())
+}
+
+fn parse_return_type<'a>(node: &Node<'a>, path: &Path, code: &'a str, _ctx: &mut Context) -> Entity {
+    let title = node
+        .utf8_text(code.as_bytes())
+        .unwrap()
+        .trim_start_matches(": ")
+        .to_owned();
+
+    Entity {
+        title,
+        description: "".to_string(),
+        kind: "type".to_string(),
+        identity: Identity::FQN("TODO".to_string()),
+        members: vec![],
+        member_context: Some("returnType".to_string()),
+        language: "ts".to_owned(),
+        meta: json!({}),
+        source: Source {
+            file: path.to_owned(),
+            start_offset_bytes: node.start_byte(),
+            end_offset_bytes: node.end_byte(),
+            repository: None,
+        },
+    }
 }
 
 fn find_docs<'a>(node: &Node<'a>, code: &'a str) -> Option<&'a str> {
@@ -140,7 +146,8 @@ mod test {
         }
         "#};
 
-        let result = parse(code, Path::new("index.ts"), &Context::new()).expect("Failed to parse code");
+        let result =
+            parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
         assert_eq!(result.len(), 1);
 
         let function = &result[0];
