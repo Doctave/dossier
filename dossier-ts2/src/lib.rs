@@ -50,8 +50,6 @@ fn parse_file(ctx: &ParserContext) -> Result<SymbolTable> {
     cursor.goto_first_child();
 
     loop {
-        println!(">> {}", cursor.node().kind());
-
         match cursor.node().kind() {
             "comment" => {
                 // Skip comments
@@ -87,7 +85,6 @@ pub(crate) trait ParseSymbol {
 }
 
 fn handle_node(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -> Result<()> {
-    println!("Handling node {}", node.kind());
     match node.kind() {
         import::NODE_KIND => {
             let import = import::parse(node, table, ctx)?;
@@ -149,7 +146,7 @@ mod test {
         let entries = table.all_entries().collect::<Vec<_>>();
 
         let entry = entries[0];
-        let function = entry.kind.symbol().unwrap().kind.function().unwrap();
+        let function = entry.symbol.kind.function().unwrap();
 
         assert_eq!(function.identifier, "foo".to_string());
         assert_eq!(
@@ -158,7 +155,7 @@ mod test {
         );
 
         let entry = entries[1];
-        let function = entry.kind.symbol().unwrap().kind.function().unwrap();
+        let function = entry.symbol.kind.function().unwrap();
 
         assert_eq!(function.identifier, "bar".to_string());
         assert_eq!(function.documentation, None);
@@ -204,9 +201,31 @@ mod test {
         assert_eq!(entries.len(), 1);
 
         let entry = entries[0];
-        let alias = entry.kind.symbol().unwrap().kind.type_alias().unwrap();
+        let alias = entry.symbol.kind.type_alias().unwrap();
 
         assert_eq!(alias.identifier, "Foo");
         assert_eq!(alias.type_kind, TypeKind::Predefined("string".to_owned()));
+    }
+
+    #[test]
+    fn resolves_type_aliases_in_one_file() {
+        let source = indoc! { r#"
+        type Foo = string;
+
+        export function makeFoo(): Foo {
+            return new Foo();
+        }
+        "#};
+
+        let mut table = parse_file(&ParserContext::new(Path::new("index.ts"), source)).unwrap();
+
+        table.resolve_types();
+
+        let entries = table.all_entries().collect::<Vec<_>>();
+        assert_eq!(entries.len(), 2);
+
+        let function = entries[1].symbol.kind.function().unwrap();
+
+        assert_eq!(function.return_type, Some(TypeKind::Identifier("Foo".to_owned(), Some("index.ts::Foo".to_owned()))));
     }
 }

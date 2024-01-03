@@ -3,7 +3,9 @@ use std::sync::atomic::AtomicUsize;
 
 use dossier_core::indexmap::IndexMap;
 
+use crate::function::Function;
 use crate::import::Import;
+use crate::type_kind::TypeKind;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A symbol we've discovered in the source code.
@@ -21,6 +23,7 @@ pub(crate) enum SymbolKind {
 }
 
 impl SymbolKind {
+    #[cfg(test)]
     pub fn function(&self) -> Option<&crate::function::Function> {
         match self {
             SymbolKind::Function(f) => Some(f),
@@ -28,19 +31,12 @@ impl SymbolKind {
         }
     }
 
-    pub fn is_function(&self) -> bool {
-        self.function().is_some()
-    }
-
+    #[cfg(test)]
     pub fn type_alias(&self) -> Option<&crate::type_alias::TypeAlias> {
         match self {
             SymbolKind::TypeAlias(a) => Some(a),
             _ => None,
         }
-    }
-
-    pub fn is_type_alias(&self) -> bool {
-        self.type_alias().is_some()
     }
 }
 
@@ -52,45 +48,9 @@ pub(crate) struct Source {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct SymbolReference {
-    pub name: String,
-    pub source: Source,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TableEntry {
-    pub kind: EntryKind,
+    pub symbol: Symbol,
     pub fqn: String,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum EntryKind {
-    Symbol(Symbol),
-    Ref(SymbolReference),
-}
-
-impl EntryKind {
-    pub fn symbol(&self) -> Option<&Symbol> {
-        match self {
-            EntryKind::Symbol(s) => Some(s),
-            _ => None,
-        }
-    }
-
-    pub fn reference(&self) -> Option<&SymbolReference> {
-        match self {
-            EntryKind::Ref(r) => Some(r),
-            _ => None,
-        }
-    }
-
-    pub fn is_symbol(&self) -> bool {
-        self.symbol().is_some()
-    }
-
-    pub fn is_reference(&self) -> bool {
-        self.reference().is_some()
-    }
 }
 
 static SCOPE_ID: AtomicUsize = AtomicUsize::new(0);
@@ -122,6 +82,7 @@ pub(crate) struct SymbolTable {
     current_scope_id: ScopeID,
 }
 
+#[allow(dead_code)]
 impl SymbolTable {
     pub fn new<P: Into<PathBuf>>(path: P) -> Self {
         let root_id = SCOPE_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -162,13 +123,52 @@ impl SymbolTable {
     pub fn add_symbol(&mut self, identifier: &str, symbol: Symbol) {
         let fqn = self.construct_fqn(identifier);
 
-        self.current_scope_mut().entries.insert(
-            identifier.into(),
-            TableEntry {
-                kind: EntryKind::Symbol(symbol),
-                fqn,
-            },
-        );
+        self.current_scope_mut()
+            .entries
+            .insert(identifier.into(), TableEntry { symbol, fqn });
+    }
+
+    pub fn resolve_types(&mut self) {
+        // First pass: collect actions to avoid mutable-immutable borrow conflict
+        let mut actions = Vec::new();
+        for (scope_index, scope) in self.scopes.iter().enumerate() {
+            for (entry_name, entry) in &scope.entries {
+                if let SymbolKind::Function(Function {
+                    return_type: Some(TypeKind::Identifier(identifier, fqn)),
+                    ..
+                }) = &entry.symbol.kind
+                {
+                    if fqn.is_none() {
+                        actions.push((scope_index, entry_name.clone(), identifier.clone()));
+                    }
+                }
+            }
+        }
+
+        // Perform lookups based on collected actions
+        let mut lookup_results = Vec::new();
+        for (scope_index, entry_name, identifier) in actions {
+            if let Some(matching_symbol) = self.lookup(&identifier, self.scopes[scope_index].id) {
+                lookup_results.push((scope_index, entry_name, matching_symbol.fqn.clone()));
+            }
+        }
+
+        // Second pass: apply the lookup results
+        for (scope_index, entry_name, fqn) in lookup_results {
+            if let Some(entry) = self
+                .scopes
+                .get_mut(scope_index)
+                .and_then(|s| s.entries.get_mut(&entry_name))
+            {
+                if let SymbolKind::Function(Function {
+                    return_type: Some(TypeKind::Identifier(_, ref mut entry_fqn)),
+                    ..
+                }) = &mut entry.symbol.kind
+                {
+                    *entry_fqn = Some(fqn);
+                }
+            }
+        }
     }
 
     fn construct_fqn(&self, identifier: &str) -> String {
@@ -275,11 +275,11 @@ mod test {
 
         let entry = table.lookup("foo", table.root_scope().id).unwrap();
 
-        match &entry.kind {
-            EntryKind::Symbol(Symbol {
+        match &entry.symbol {
+            Symbol {
                 kind: SymbolKind::Function(f),
                 ..
-            }) => {
+            } => {
                 assert_eq!(f.identifier, "foo");
             }
             _ => panic!("Expected a function symbol"),

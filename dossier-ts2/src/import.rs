@@ -13,7 +13,7 @@ pub(crate) struct Import {
     pub source: String,
 }
 
-pub(crate) fn parse(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -> Result<Import> {
+pub(crate) fn parse(node: &Node, _table: &mut SymbolTable, ctx: &ParserContext) -> Result<Import> {
     let mut cursor = node.walk();
     assert!(cursor.node().kind() == NODE_KIND);
 
