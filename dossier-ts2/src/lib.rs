@@ -139,7 +139,7 @@ mod test {
             console.log("Hello, world!");
         }
 
-        export function bar() {
+        export function bar(): string {
             console.log("Hello, world!");
         }
         "#};
@@ -162,6 +162,10 @@ mod test {
 
         assert_eq!(function.identifier, "bar".to_string());
         assert_eq!(function.documentation, None);
+        assert_eq!(
+            function.return_type,
+            Some(TypeKind::Predefined("string".to_owned()))
+        );
 
         assert_eq!(entries.len(), 2);
     }

@@ -28,11 +28,19 @@ impl SymbolKind {
         }
     }
 
+    pub fn is_function(&self) -> bool {
+        self.function().is_some()
+    }
+
     pub fn type_alias(&self) -> Option<&crate::type_alias::TypeAlias> {
         match self {
             SymbolKind::TypeAlias(a) => Some(a),
             _ => None,
         }
+    }
+
+    pub fn is_type_alias(&self) -> bool {
+        self.type_alias().is_some()
     }
 }
 
@@ -256,6 +264,7 @@ mod test {
                     identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
+                    return_type: None,
                 }),
                 source: Source {
                     offset_start_bytes: 0,
@@ -290,6 +299,7 @@ mod test {
                     identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
+                    return_type: None,
                 }),
                 source: Source {
                     offset_start_bytes: 0,
@@ -314,6 +324,7 @@ mod test {
                     identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
+                    return_type: None,
                 }),
                 source: Source {
                     offset_start_bytes: 0,
@@ -340,6 +351,7 @@ mod test {
                     identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
+                    return_type: None,
                 }),
                 source: Source {
                     offset_start_bytes: 0,
@@ -357,6 +369,7 @@ mod test {
                     identifier: "bar".to_owned(),
                     documentation: None,
                     is_exported: false,
+                    return_type: None,
                 }),
                 source: Source {
                     offset_start_bytes: 0,
