@@ -32,23 +32,34 @@ pub(crate) struct Function {
     pub is_exported: bool,
 }
 
-pub(crate) fn parse(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -> Result<()> {
+pub(crate) fn parse(
+    node: &Node,
+    table: &mut SymbolTable,
+    ctx: &ParserContext,
+) -> Result<(String, Symbol)> {
     assert_eq!(node.kind(), NODE_KIND);
 
     let mut cursor = QueryCursor::new();
-    let matches = cursor.matches(&QUERY, *node, ctx.code.as_bytes());
+    let function = cursor
+        .matches(&QUERY, *node, ctx.code.as_bytes())
+        .into_iter()
+        .next()
+        .unwrap();
 
-    for m in matches {
-        let main_node = node_for_capture("function", m.captures, &QUERY).unwrap();
-        let name_node = node_for_capture("function_name", m.captures, &QUERY).unwrap();
-        // let parameter_node = node_for_capture("function_parameters", m.captures, &QUERY);
-        // let return_type = node_for_capture("function_return_type", m.captures, &QUERY);
+    let main_node = node_for_capture("function", function.captures, &QUERY).unwrap();
+    let name_node = node_for_capture("function_name", function.captures, &QUERY).unwrap();
+    // let parameter_node = node_for_capture("function_parameters", m.captures, &QUERY);
+    // let return_type = node_for_capture("function_return_type", m.captures, &QUERY);
 
-        let docs = find_docs(&main_node, ctx.code);
+    let docs = find_docs(&main_node, ctx.code);
 
-        table.add_entry(TableEntry::Symbol(Symbol {
+    let title = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
+
+    Ok((
+        title.clone(),
+        Symbol {
             kind: SymbolKind::Function(Function {
-                title: name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned(),
+                title,
                 documentation: docs.map(process_comment),
                 is_exported: is_exported(&main_node),
             }),
@@ -56,10 +67,8 @@ pub(crate) fn parse(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -
                 offset_start_bytes: main_node.start_byte(),
                 offset_end_bytes: main_node.end_byte(),
             },
-        }))
-    }
-
-    Ok(())
+        },
+    ))
 }
 
 fn find_docs<'a>(node: &Node<'a>, code: &'a str) -> Option<&'a str> {

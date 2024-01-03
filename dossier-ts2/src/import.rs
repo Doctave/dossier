@@ -13,7 +13,7 @@ pub(crate) struct Import {
     pub source: String,
 }
 
-pub(crate) fn parse(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -> Result<()> {
+pub(crate) fn parse(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -> Result<Import> {
     let mut cursor = node.walk();
     assert!(cursor.node().kind() == NODE_KIND);
 
@@ -60,7 +60,5 @@ pub(crate) fn parse(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -
         .unwrap()
         .to_owned();
 
-    table.add_import(Import { names, source });
-
-    Ok(())
+    Ok(Import { names, source })
 }
