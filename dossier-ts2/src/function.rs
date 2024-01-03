@@ -10,7 +10,7 @@ use crate::symbols::Source;
 use crate::type_kind::{self, TypeKind};
 use crate::{helpers::*, IntoEntity};
 use crate::{
-    symbols::{Symbol, SymbolKind, SymbolTable},
+    symbols::{Symbol, SymbolKind},
     ParserContext,
 };
 
@@ -58,11 +58,7 @@ impl IntoEntity for Function {
     }
 }
 
-pub(crate) fn parse(
-    node: &Node,
-    table: &mut SymbolTable,
-    ctx: &ParserContext,
-) -> Result<(String, Symbol)> {
+pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<(String, Symbol)> {
     assert_eq!(node.kind(), NODE_KIND);
 
     let mut cursor = QueryCursor::new();
@@ -81,7 +77,7 @@ pub(crate) fn parse(
             while !type_node_cursor.node().is_named() {
                 type_node_cursor.goto_next_sibling();
             }
-            type_kind::parse(&type_node_cursor.node(), table, ctx).unwrap()
+            type_kind::parse(&type_node_cursor.node(), ctx).unwrap()
         });
 
     let docs = find_docs(&main_node, ctx.code);
@@ -91,6 +87,7 @@ pub(crate) fn parse(
     Ok((
         identifier.clone(),
         Symbol {
+            fqn: ctx.construct_fqn(&identifier),
             kind: SymbolKind::Function(Function {
                 identifier,
                 documentation: docs.map(process_comment),
@@ -98,6 +95,7 @@ pub(crate) fn parse(
                 return_type,
             }),
             source: Source {
+                file: ctx.file.to_owned(),
                 offset_start_bytes: main_node.start_byte(),
                 offset_end_bytes: main_node.end_byte(),
             },

@@ -12,6 +12,7 @@ use crate::type_kind::TypeKind;
 pub(crate) struct Symbol {
     pub kind: SymbolKind,
     pub source: Source,
+    pub fqn: String,
 }
 
 /// The type of the symbol.
@@ -43,14 +44,9 @@ impl SymbolKind {
 /// The source of the symbol.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Source {
+    pub file: PathBuf,
     pub offset_start_bytes: usize,
     pub offset_end_bytes: usize,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct TableEntry {
-    pub symbol: Symbol,
-    pub fqn: String,
 }
 
 static SCOPE_ID: AtomicUsize = AtomicUsize::new(0);
@@ -63,7 +59,7 @@ pub(crate) struct Scope {
     pub identifier: Option<String>,
     pub id: ScopeID,
     pub parent: Option<ScopeID>,
-    pub entries: IndexMap<String, TableEntry>,
+    pub symbols: IndexMap<String, Symbol>,
     pub imports: Vec<Import>,
 }
 
@@ -94,16 +90,16 @@ impl SymbolTable {
                 identifier: None,
                 id: root_id,
                 parent: None,
-                entries: IndexMap::new(),
+                symbols: IndexMap::new(),
                 imports: vec![],
             }],
         }
     }
 
-    pub fn lookup(&self, identifier: &str, scope_id: ScopeID) -> Option<&TableEntry> {
+    pub fn lookup(&self, identifier: &str, scope_id: ScopeID) -> Option<&Symbol> {
         let scope = self.scopes.iter().find(|s| s.id == scope_id).unwrap();
 
-        scope.entries.get(identifier).or_else(|| {
+        scope.symbols.get(identifier).or_else(|| {
             if let Some(parent_id) = scope.parent {
                 self.lookup(identifier, parent_id)
             } else {
@@ -128,8 +124,8 @@ impl SymbolTable {
             })
     }
 
-    pub fn all_entries(&self) -> impl Iterator<Item = &TableEntry> {
-        self.scopes.iter().flat_map(|s| s.entries.values())
+    pub fn all_symbols(&self) -> impl Iterator<Item = &Symbol> {
+        self.scopes.iter().flat_map(|s| s.symbols.values())
     }
 
     pub fn all_imports(&self) -> impl Iterator<Item = &Import> {
@@ -137,25 +133,23 @@ impl SymbolTable {
     }
 
     pub fn add_symbol(&mut self, identifier: &str, symbol: Symbol) {
-        let fqn = self.construct_fqn(identifier);
-
         self.current_scope_mut()
-            .entries
-            .insert(identifier.into(), TableEntry { symbol, fqn });
+            .symbols
+            .insert(identifier.into(), symbol);
     }
 
     pub fn resolve_types(&mut self) {
         // First pass: collect actions to avoid mutable-immutable borrow conflict
         let mut actions = Vec::new();
         for (scope_index, scope) in self.scopes.iter().enumerate() {
-            for (entry_name, entry) in &scope.entries {
+            for (symbol_name, symbol) in &scope.symbols {
                 if let SymbolKind::Function(Function {
                     return_type: Some(TypeKind::Identifier(identifier, fqn)),
                     ..
-                }) = &entry.symbol.kind
+                }) = &symbol.kind
                 {
                     if fqn.is_none() {
-                        actions.push((scope_index, entry_name.clone(), identifier.clone()));
+                        actions.push((scope_index, symbol_name.clone(), identifier.clone()));
                     }
                 }
             }
@@ -163,25 +157,25 @@ impl SymbolTable {
 
         // Perform lookups based on collected actions
         let mut lookup_results = Vec::new();
-        for (scope_index, entry_name, identifier) in actions {
+        for (scope_index, symbol_name, identifier) in actions {
             if let Some(matching_symbol) = self.lookup(&identifier, self.scopes[scope_index].id) {
-                lookup_results.push((scope_index, entry_name, matching_symbol.fqn.clone()));
+                lookup_results.push((scope_index, symbol_name, matching_symbol.fqn.clone()));
             }
         }
 
         // Second pass: apply the lookup results
-        for (scope_index, entry_name, fqn) in lookup_results {
-            if let Some(entry) = self
+        for (scope_index, symbol_name, fqn) in lookup_results {
+            if let Some(symbol) = self
                 .scopes
                 .get_mut(scope_index)
-                .and_then(|s| s.entries.get_mut(&entry_name))
+                .and_then(|s| s.symbols.get_mut(&symbol_name))
             {
                 if let SymbolKind::Function(Function {
-                    return_type: Some(TypeKind::Identifier(_, ref mut entry_fqn)),
+                    return_type: Some(TypeKind::Identifier(_, ref mut symbol_fqn)),
                     ..
-                }) = &mut entry.symbol.kind
+                }) = &mut symbol.kind
                 {
-                    *entry_fqn = Some(fqn);
+                    *symbol_fqn = Some(fqn);
                 }
             }
         }
@@ -197,14 +191,14 @@ impl SymbolTable {
         // First pass: collect actions to avoid mutable-immutable borrow conflict
         let mut actions = Vec::new();
         for (scope_index, scope) in self.scopes.iter().enumerate() {
-            for (entry_name, entry) in &scope.entries {
+            for (symbol_name, symbol) in &scope.symbols {
                 if let SymbolKind::Function(Function {
                     return_type: Some(TypeKind::Identifier(identifier, fqn)),
                     ..
-                }) = &entry.symbol.kind
+                }) = &symbol.kind
                 {
                     if fqn.is_none() {
-                        actions.push((scope_index, entry_name.clone(), identifier.clone()));
+                        actions.push((scope_index, symbol_name.clone(), identifier.clone()));
                     }
                 }
             }
@@ -212,7 +206,7 @@ impl SymbolTable {
 
         // Perform lookups based on collected actions
         let mut lookup_results = Vec::new();
-        for (scope_index, entry_name, identifier) in actions {
+        for (scope_index, symbol_name, identifier) in actions {
             if let Some(import) = self.lookup_import(&identifier, self.scopes[scope_index].id) {
                 if let Some(imported_table) =
                     all_tables.find(|t| self.matches_import_path(&t.file, import))
@@ -220,25 +214,25 @@ impl SymbolTable {
                     if let Some(matching_symbol) =
                         imported_table.lookup(&identifier, imported_table.root_scope().id)
                     {
-                        lookup_results.push((scope_index, entry_name, matching_symbol.fqn.clone()));
+                        lookup_results.push((scope_index, symbol_name, matching_symbol.fqn.clone()));
                     }
                 }
             }
         }
 
         // Second pass: apply the lookup results
-        for (scope_index, entry_name, fqn) in lookup_results {
-            if let Some(entry) = self
+        for (scope_index, symbol_name, fqn) in lookup_results {
+            if let Some(symbol) = self
                 .scopes
                 .get_mut(scope_index)
-                .and_then(|s| s.entries.get_mut(&entry_name))
+                .and_then(|s| s.symbols.get_mut(&symbol_name))
             {
                 if let SymbolKind::Function(Function {
-                    return_type: Some(TypeKind::Identifier(_, ref mut entry_fqn)),
+                    return_type: Some(TypeKind::Identifier(_, ref mut symbol_fqn)),
                     ..
-                }) = &mut entry.symbol.kind
+                }) = &mut symbol.kind
                 {
-                    *entry_fqn = Some(fqn);
+                    *symbol_fqn = Some(fqn);
                 }
             }
         }
@@ -285,7 +279,9 @@ impl SymbolTable {
 
         normalized_path
     }
-    fn construct_fqn(&self, identifier: &str) -> String {
+
+    /// Constructs a fully qualified name for the given identifier in the current scope.
+    pub fn construct_fqn(&self, identifier: &str) -> String {
         let mut out = format!("{}", self.file.display());
 
         let mut scope = self.current_scope();
@@ -322,7 +318,7 @@ impl SymbolTable {
             id,
             identifier: Some(name.into()),
             parent: Some(self.current_scope_id),
-            entries: IndexMap::new(),
+            symbols: IndexMap::new(),
             imports: vec![],
         });
 
@@ -381,15 +377,17 @@ mod test {
                     return_type: None,
                 }),
                 source: Source {
+                    file: PathBuf::from("foo.ts"),
                     offset_start_bytes: 0,
                     offset_end_bytes: 0,
                 },
+                fqn: "foo.ts::foo".to_owned(),
             },
         );
 
-        let entry = table.lookup("foo", table.root_scope().id).unwrap();
+        let symbol = table.lookup("foo", table.root_scope().id).unwrap();
 
-        match &entry.symbol {
+        match &symbol {
             Symbol {
                 kind: SymbolKind::Function(f),
                 ..
@@ -416,9 +414,11 @@ mod test {
                     return_type: None,
                 }),
                 source: Source {
+                    file: PathBuf::from("foo.ts"),
                     offset_start_bytes: 0,
                     offset_end_bytes: 0,
                 },
+                fqn: "foo.ts::foo".to_owned(),
             },
         );
 
@@ -441,9 +441,11 @@ mod test {
                     return_type: None,
                 }),
                 source: Source {
+                    file: PathBuf::from("foo.ts"),
                     offset_start_bytes: 0,
                     offset_end_bytes: 0,
                 },
+                fqn: "foo.ts::foo".to_owned(),
             },
         );
 
@@ -458,43 +460,10 @@ mod test {
     fn computes_fqns_for_entries() {
         let mut table = SymbolTable::new("foo.ts");
 
-        table.add_symbol(
-            "foo",
-            Symbol {
-                kind: SymbolKind::Function(crate::function::Function {
-                    identifier: "foo".to_owned(),
-                    documentation: None,
-                    is_exported: false,
-                    return_type: None,
-                }),
-                source: Source {
-                    offset_start_bytes: 0,
-                    offset_end_bytes: 0,
-                },
-            },
-        );
+        assert_eq!(table.construct_fqn("foo"), "foo.ts::foo");
 
-        let nested_scope = table.push_scope("Fizz");
+        let _nested_scope = table.push_scope("Fizz");
 
-        table.add_symbol(
-            "bar",
-            Symbol {
-                kind: SymbolKind::Function(crate::function::Function {
-                    identifier: "bar".to_owned(),
-                    documentation: None,
-                    is_exported: false,
-                    return_type: None,
-                }),
-                source: Source {
-                    offset_start_bytes: 0,
-                    offset_end_bytes: 0,
-                },
-            },
-        );
-
-        assert_eq!(
-            table.lookup("bar", nested_scope).unwrap().fqn,
-            "foo.ts::Fizz::bar"
-        );
+        assert_eq!(table.construct_fqn("foo"), "foo.ts::Fizz::foo");
     }
 }

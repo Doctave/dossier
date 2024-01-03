@@ -1,4 +1,4 @@
-use crate::{symbols::SymbolTable, ParserContext};
+use crate::ParserContext;
 use dossier_core::{tree_sitter::Node, Result};
 
 type ResolvedTypeFQN = String;
@@ -13,11 +13,7 @@ pub(crate) enum TypeKind {
     Identifier(String, Option<ResolvedTypeFQN>),
 }
 
-pub(crate) fn parse(
-    node: &Node,
-    _table: &mut SymbolTable,
-    ctx: &ParserContext,
-) -> Result<TypeKind> {
+pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<TypeKind> {
     match node.kind() {
         "predefined_type" => {
             let type_name = node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();

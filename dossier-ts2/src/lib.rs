@@ -8,7 +8,7 @@ mod type_kind;
 use dossier_core::tree_sitter::{Node, Parser};
 use dossier_core::Result;
 
-use symbols::{SymbolTable, TableEntry};
+use symbols::SymbolTable;
 
 use std::path::Path;
 
@@ -41,7 +41,7 @@ impl dossier_core::DocsParser for TypeScriptParser {
             let code = std::fs::read_to_string(path).unwrap();
             let ctx = ParserContext::new(path, &code);
 
-            let symbol_table = parse_file(&ctx)?;
+            let symbol_table = parse_file(ctx)?;
 
             symbols.push(symbol_table);
         }
@@ -59,8 +59,8 @@ impl dossier_core::DocsParser for TypeScriptParser {
 
         let mut entities = vec![];
         for table in window {
-            for entry in table.all_entries() {
-                match entry.symbol.kind {
+            for symbol in table.all_symbols() {
+                match symbol.kind {
                     symbols::SymbolKind::Function(ref function) => {
                         entities.push(function.clone().into_entity());
                     }
@@ -73,8 +73,7 @@ impl dossier_core::DocsParser for TypeScriptParser {
     }
 }
 
-fn parse_file(ctx: &ParserContext) -> Result<SymbolTable> {
-    let mut table = SymbolTable::new(ctx.path);
+fn parse_file(mut ctx: ParserContext) -> Result<SymbolTable> {
     let mut parser = Parser::new();
 
     parser
@@ -96,10 +95,10 @@ fn parse_file(ctx: &ParserContext) -> Result<SymbolTable> {
                 let mut tmp = cursor.node().walk();
                 tmp.goto_first_child();
                 tmp.goto_next_sibling();
-                handle_node(&tmp.node(), &mut table, ctx)?;
+                handle_node(&tmp.node(), &mut ctx)?;
             }
             _ => {
-                handle_node(&cursor.node(), &mut table, ctx)?;
+                handle_node(&cursor.node(), &mut ctx)?;
             }
         }
 
@@ -108,33 +107,22 @@ fn parse_file(ctx: &ParserContext) -> Result<SymbolTable> {
         }
     }
 
-    Ok(table)
+    Ok(ctx.symbol_table)
 }
 
-pub(crate) trait ParseSymbol {
-    /// A trait for parsing a symbol into a table entry from a node.
-    ///
-    /// Can be called recursive to construct
-    fn parse(
-        node: &Node,
-        table: &mut SymbolTable,
-        ctx: &ParserContext,
-    ) -> Result<(String, TableEntry)>;
-}
-
-fn handle_node(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -> Result<()> {
+fn handle_node(node: &Node, ctx: &mut ParserContext) -> Result<()> {
     match node.kind() {
         import::NODE_KIND => {
-            let import = import::parse(node, table, ctx)?;
-            table.add_import(import);
+            let import = import::parse(node, ctx)?;
+            ctx.symbol_table.add_import(import);
         }
         function::NODE_KIND => {
-            let (identifier, entry) = function::parse(node, table, ctx)?;
-            table.add_symbol(&identifier, entry);
+            let (identifier, symbol) = function::parse(node, ctx)?;
+            ctx.symbol_table.add_symbol(&identifier, symbol);
         }
         type_alias::NODE_KIND => {
-            let (identifier, entry) = type_alias::parse(node, table, ctx)?;
-            table.add_symbol(&identifier, entry);
+            let (identifier, symbol) = type_alias::parse(node, ctx)?;
+            ctx.symbol_table.add_symbol(&identifier, symbol);
         }
         _ => {
             println!("Unhandled node: {}", node.kind());
@@ -146,13 +134,22 @@ fn handle_node(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -> Res
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ParserContext<'a> {
-    path: &'a Path,
+    file: &'a Path,
     code: &'a str,
+    pub symbol_table: SymbolTable,
 }
 
 impl<'a> ParserContext<'a> {
     fn new(path: &'a Path, code: &'a str) -> Self {
-        Self { path, code }
+        Self {
+            file: path,
+            code,
+            symbol_table: SymbolTable::new(path),
+        }
+    }
+
+    fn construct_fqn(&self, identifier: &str) -> String {
+        self.symbol_table.construct_fqn(identifier)
     }
 }
 
@@ -179,21 +176,23 @@ mod test {
         }
         "#};
 
-        let table = parse_file(&ParserContext::new(Path::new("index.ts"), source)).unwrap();
+        let table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
 
-        let entries = table.all_entries().collect::<Vec<_>>();
+        let symbols = table.all_symbols().collect::<Vec<_>>();
 
-        let entry = entries[0];
-        let function = entry.symbol.kind.function().unwrap();
+        let symbol = symbols[0];
+        let function = symbol.kind.function().unwrap();
 
         assert_eq!(function.identifier, "foo".to_string());
         assert_eq!(
             function.documentation,
             Some("The documentation".to_string())
         );
+        assert_eq!(function.identifier, "foo".to_string());
+        assert_eq!(symbol.fqn, "index.ts::foo");
 
-        let entry = entries[1];
-        let function = entry.symbol.kind.function().unwrap();
+        let symbol = symbols[1];
+        let function = symbol.kind.function().unwrap();
 
         assert_eq!(function.identifier, "bar".to_string());
         assert_eq!(function.documentation, None);
@@ -202,7 +201,7 @@ mod test {
             Some(TypeKind::Predefined("string".to_owned()))
         );
 
-        assert_eq!(entries.len(), 2);
+        assert_eq!(symbols.len(), 2);
     }
 
     #[test]
@@ -215,10 +214,10 @@ mod test {
         }
         "#};
 
-        let table = parse_file(&ParserContext::new(Path::new("index.ts"), source)).unwrap();
+        let table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
 
-        let entries = table.all_entries().collect::<Vec<_>>();
-        assert_eq!(entries.len(), 1);
+        let symbols = table.all_symbols().collect::<Vec<_>>();
+        assert_eq!(symbols.len(), 1);
 
         let imports = table.all_imports().collect::<Vec<_>>();
         assert_eq!(imports.len(), 1);
@@ -233,13 +232,13 @@ mod test {
         type Foo = string;
         "#};
 
-        let table = parse_file(&ParserContext::new(Path::new("index.ts"), source)).unwrap();
+        let table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
 
-        let entries = table.all_entries().collect::<Vec<_>>();
-        assert_eq!(entries.len(), 1);
+        let symbols = table.all_symbols().collect::<Vec<_>>();
+        assert_eq!(symbols.len(), 1);
 
-        let entry = entries[0];
-        let alias = entry.symbol.kind.type_alias().unwrap();
+        let symbol = symbols[0];
+        let alias = symbol.kind.type_alias().unwrap();
 
         assert_eq!(alias.identifier, "Foo");
         assert_eq!(alias.type_kind, TypeKind::Predefined("string".to_owned()));
@@ -255,14 +254,14 @@ mod test {
         }
         "#};
 
-        let mut table = parse_file(&ParserContext::new(Path::new("index.ts"), source)).unwrap();
+        let mut table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
 
         table.resolve_types();
 
-        let entries = table.all_entries().collect::<Vec<_>>();
-        assert_eq!(entries.len(), 2);
+        let symbols = table.all_symbols().collect::<Vec<_>>();
+        assert_eq!(symbols.len(), 2);
 
-        let function = entries[1].symbol.kind.function().unwrap();
+        let function = symbols[1].kind.function().unwrap();
 
         assert_eq!(
             function.return_type,
@@ -287,9 +286,9 @@ mod test {
         }
         "#};
 
-        let mut foo_table = parse_file(&ParserContext::new(Path::new("foo.ts"), foo_file)).unwrap();
+        let mut foo_table = parse_file(ParserContext::new(Path::new("foo.ts"), foo_file)).unwrap();
         let mut index_table =
-            parse_file(&ParserContext::new(Path::new("index.ts"), index_file)).unwrap();
+            parse_file(ParserContext::new(Path::new("index.ts"), index_file)).unwrap();
 
         foo_table.resolve_types();
         index_table.resolve_types();
@@ -298,9 +297,9 @@ mod test {
 
         index_table.resolve_imported_types(all_tables);
 
-        let entries = index_table.all_entries().collect::<Vec<_>>();
-        assert_eq!(entries.len(), 1);
-        let function = entries[0].symbol.kind.function().unwrap();
+        let symbols = index_table.all_symbols().collect::<Vec<_>>();
+        assert_eq!(symbols.len(), 1);
+        let function = symbols[0].kind.function().unwrap();
 
         assert_eq!(
             function.return_type,
