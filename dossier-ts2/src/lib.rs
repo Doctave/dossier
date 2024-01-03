@@ -20,7 +20,7 @@ impl dossier_core::DocsParser for TypeScriptParser {
         paths: T,
         _ctx: &mut dossier_core::Context,
     ) -> Result<Vec<dossier_core::Entity>> {
-        let mut symbols = vec![];
+        let mut symbols = Vec::new();
 
         for path in paths {
             let path = path.into();
@@ -30,6 +30,19 @@ impl dossier_core::DocsParser for TypeScriptParser {
 
             symbols.push(parse_file(&ctx)?);
         }
+
+        for table in symbols.iter_mut() {
+            table.resolve_types();
+        }
+
+        let mut window = vec![];
+
+        while let Some(mut table) = symbols.pop() {
+            table.resolve_imported_types(symbols.iter().chain(window.iter()));
+            window.push(table);
+        }
+
+        println!("{:#?}", window);
 
         unimplemented!()
     }
@@ -258,7 +271,7 @@ mod test {
 
         let all_tables = vec![&foo_table];
 
-        index_table.resolve_imported_types(all_tables.as_slice());
+        index_table.resolve_imported_types(all_tables);
 
         let entries = index_table.all_entries().collect::<Vec<_>>();
         assert_eq!(entries.len(), 1);

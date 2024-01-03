@@ -188,7 +188,12 @@ impl SymbolTable {
     }
 
     /// Same as `resolve_types`, but resolves imports across files.
-    pub fn resolve_imported_types(&mut self, all_tables: &[&SymbolTable]) {
+    pub fn resolve_imported_types<'a, T: IntoIterator<Item = &'a SymbolTable>>(
+        &mut self,
+        all_tables: T,
+    ) {
+        let mut all_tables = all_tables.into_iter();
+
         // First pass: collect actions to avoid mutable-immutable borrow conflict
         let mut actions = Vec::new();
         for (scope_index, scope) in self.scopes.iter().enumerate() {
@@ -209,9 +214,9 @@ impl SymbolTable {
         let mut lookup_results = Vec::new();
         for (scope_index, entry_name, identifier) in actions {
             if let Some(import) = self.lookup_import(&identifier, self.scopes[scope_index].id) {
-                if let Some(imported_table) = all_tables.iter().find(|t| {
-                    self.matches_import_path(&t.file, import)
-                }) {
+                if let Some(imported_table) =
+                    all_tables.find(|t| self.matches_import_path(&t.file, import))
+                {
                     if let Some(matching_symbol) =
                         imported_table.lookup(&identifier, imported_table.root_scope().id)
                     {
