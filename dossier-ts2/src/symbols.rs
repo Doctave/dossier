@@ -1,6 +1,7 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
+
+use dossier_core::indexmap::IndexMap;
 
 use crate::import::Import;
 
@@ -18,6 +19,14 @@ pub(crate) enum SymbolKind {
     Function(crate::function::Function),
 }
 
+impl SymbolKind {
+    pub fn function(&self) -> Option<&crate::function::Function> {
+        match self {
+            SymbolKind::Function(f) => Some(f),
+        }
+    }
+}
+
 /// The source of the symbol.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Source {
@@ -33,14 +42,38 @@ pub(crate) struct SymbolReference {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TableEntry {
-    kind: EntryKind,
-    fqn: String,
+    pub kind: EntryKind,
+    pub fqn: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum EntryKind {
     Symbol(Symbol),
     Ref(SymbolReference),
+}
+
+impl EntryKind {
+    pub fn symbol(&self) -> Option<&Symbol> {
+        match self {
+            EntryKind::Symbol(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn reference(&self) -> Option<&SymbolReference> {
+        match self {
+            EntryKind::Ref(r) => Some(r),
+            _ => None,
+        }
+    }
+
+    pub fn is_symbol(&self) -> bool {
+        self.symbol().is_some()
+    }
+
+    pub fn is_reference(&self) -> bool {
+        self.reference().is_some()
+    }
 }
 
 static SCOPE_ID: AtomicUsize = AtomicUsize::new(0);
@@ -53,7 +86,7 @@ pub(crate) struct Scope {
     pub identifier: Option<String>,
     pub id: ScopeID,
     pub parent: Option<ScopeID>,
-    pub entries: HashMap<String, TableEntry>,
+    pub entries: IndexMap<String, TableEntry>,
     pub imports: Vec<Import>,
 }
 
@@ -83,7 +116,7 @@ impl SymbolTable {
                 identifier: None,
                 id: root_id,
                 parent: None,
-                entries: HashMap::new(),
+                entries: IndexMap::new(),
                 imports: vec![],
             }],
         }
@@ -158,7 +191,7 @@ impl SymbolTable {
             id,
             identifier: Some(name.into()),
             parent: Some(self.current_scope_id),
-            entries: HashMap::new(),
+            entries: IndexMap::new(),
             imports: vec![],
         });
 

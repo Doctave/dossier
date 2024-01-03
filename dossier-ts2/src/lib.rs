@@ -135,36 +135,19 @@ mod test {
         let table = parse_file(&ParserContext::new(Path::new("index.ts"), source)).unwrap();
 
         let entries = table.all_entries().collect::<Vec<_>>();
+        
+        let entry = &entries[0];
+        let function = entry.kind.symbol().unwrap().kind.function().unwrap();
 
-        // assert_eq!(
-        //     entries[0],
-        //     &TableEntry::Symbol(Symbol {
-        //         kind: SymbolKind::Function(Function {
-        //             title: "foo".to_string(),
-        //             documentation: Some("The documentation".to_string()),
-        //             is_exported: true,
-        //         }),
-        //         source: Source {
-        //             offset_start_bytes: 36,
-        //             offset_end_bytes: 88,
-        //         },
-        //     })
-        // );
+        assert_eq!(function.title, "foo".to_string());
+        assert_eq!(function.documentation, Some("The documentation".to_string()));
+        
+        let entry = &entries[1];
+        let function = entry.kind.symbol().unwrap().kind.function().unwrap();
 
-        // assert_eq!(
-        //     entries[1],
-        //     &TableEntry::Symbol(Symbol {
-        //         kind: SymbolKind::Function(Function {
-        //             title: "bar".to_string(),
-        //             documentation: None,
-        //             is_exported: true,
-        //         }),
-        //         source: Source {
-        //             offset_start_bytes: 97,
-        //             offset_end_bytes: 149,
-        //         },
-        //     })
-        // );
+        assert_eq!(function.title, "bar".to_string());
+        assert_eq!(function.documentation, None);
+
         assert_eq!(entries.len(), 2);
     }
 
