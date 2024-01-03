@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicUsize;
 
 use dossier_core::indexmap::IndexMap;
@@ -112,6 +112,22 @@ impl SymbolTable {
         })
     }
 
+    pub fn lookup_import(&self, identifier: &str, scope_id: ScopeID) -> Option<&Import> {
+        let scope = self.scopes.iter().find(|s| s.id == scope_id).unwrap();
+
+        scope
+            .imports
+            .iter()
+            .find(|i| i.names.contains(&identifier.to_owned()))
+            .or_else(|| {
+                if let Some(parent_id) = scope.parent {
+                    self.lookup_import(identifier, parent_id)
+                } else {
+                    None
+                }
+            })
+    }
+
     pub fn all_entries(&self) -> impl Iterator<Item = &TableEntry> {
         self.scopes.iter().flat_map(|s| s.entries.values())
     }
@@ -171,6 +187,99 @@ impl SymbolTable {
         }
     }
 
+    /// Same as `resolve_types`, but resolves imports across files.
+    pub fn resolve_imported_types(&mut self, all_tables: &[&SymbolTable]) {
+        // First pass: collect actions to avoid mutable-immutable borrow conflict
+        let mut actions = Vec::new();
+        for (scope_index, scope) in self.scopes.iter().enumerate() {
+            for (entry_name, entry) in &scope.entries {
+                if let SymbolKind::Function(Function {
+                    return_type: Some(TypeKind::Identifier(identifier, fqn)),
+                    ..
+                }) = &entry.symbol.kind
+                {
+                    if fqn.is_none() {
+                        actions.push((scope_index, entry_name.clone(), identifier.clone()));
+                    }
+                }
+            }
+        }
+
+        // Perform lookups based on collected actions
+        let mut lookup_results = Vec::new();
+        for (scope_index, entry_name, identifier) in actions {
+            if let Some(import) = self.lookup_import(&identifier, self.scopes[scope_index].id) {
+                if let Some(imported_table) = all_tables.iter().find(|t| {
+                    self.matches_import_path(&t.file, import)
+                }) {
+                    if let Some(matching_symbol) =
+                        imported_table.lookup(&identifier, imported_table.root_scope().id)
+                    {
+                        lookup_results.push((scope_index, entry_name, matching_symbol.fqn.clone()));
+                    }
+                }
+            }
+        }
+
+        // Second pass: apply the lookup results
+        for (scope_index, entry_name, fqn) in lookup_results {
+            if let Some(entry) = self
+                .scopes
+                .get_mut(scope_index)
+                .and_then(|s| s.entries.get_mut(&entry_name))
+            {
+                if let SymbolKind::Function(Function {
+                    return_type: Some(TypeKind::Identifier(_, ref mut entry_fqn)),
+                    ..
+                }) = &mut entry.symbol.kind
+                {
+                    *entry_fqn = Some(fqn);
+                }
+            }
+        }
+    }
+
+    /// Returns true if the import path resolves to the symbol table's path
+    /// from the perspective of the current symbol table's path.
+    ///
+    /// i.e. if a file `foo/bar.ts` imports `../fizz.ts`, this function
+    /// returns true for symbol table with the path `fizz.ts`.
+    fn matches_import_path(&self, symbol_table_path: &Path, import: &Import) -> bool {
+        // Get the directory of the current symbol table's file
+        let base_path = self.file.parent().unwrap_or_else(|| Path::new(""));
+
+        // Combine base path with the relative path from import
+        let combined_path = base_path.join(&import.source);
+
+        // Normalize the combined path
+        let normalized_path = self.normalize_path(&combined_path);
+
+        // Compare the normalized paths
+        normalized_path == symbol_table_path
+    }
+
+    // Helper function to normalize a path
+    fn normalize_path(&self, path: &Path) -> PathBuf {
+        let mut components = path.components().peekable();
+        let mut normalized_path = PathBuf::new();
+
+        while let Some(component) = components.next() {
+            match component {
+                std::path::Component::ParentDir => {
+                    // If there's a previous component and it's not "..", go up one level
+                    if let Some(std::path::Component::Normal(_)) = components.peek() {
+                        normalized_path.pop();
+                    } else {
+                        normalized_path.push("..");
+                    }
+                }
+                std::path::Component::Normal(part) => normalized_path.push(part),
+                _ => {} // Ignore other components (RootDir, CurDir, Prefix)
+            }
+        }
+
+        normalized_path
+    }
     fn construct_fqn(&self, identifier: &str) -> String {
         let mut out = format!("{}", self.file.display());
 

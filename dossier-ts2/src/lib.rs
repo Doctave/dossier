@@ -226,6 +226,50 @@ mod test {
 
         let function = entries[1].symbol.kind.function().unwrap();
 
-        assert_eq!(function.return_type, Some(TypeKind::Identifier("Foo".to_owned(), Some("index.ts::Foo".to_owned()))));
+        assert_eq!(
+            function.return_type,
+            Some(TypeKind::Identifier(
+                "Foo".to_owned(),
+                Some("index.ts::Foo".to_owned())
+            ))
+        );
+    }
+
+    #[test]
+    fn resolves_type_aliases_across_files() {
+        let foo_file = indoc! { r#"
+        export type Foo = string;
+        "#};
+
+        let index_file = indoc! { r#"
+        import { Foo } from "./foo.ts";
+
+        export function makeFoo(): Foo {
+            return new Foo();
+        }
+        "#};
+
+        let mut foo_table = parse_file(&ParserContext::new(Path::new("foo.ts"), foo_file)).unwrap();
+        let mut index_table =
+            parse_file(&ParserContext::new(Path::new("index.ts"), index_file)).unwrap();
+
+        foo_table.resolve_types();
+        index_table.resolve_types();
+
+        let all_tables = vec![&foo_table];
+
+        index_table.resolve_imported_types(all_tables.as_slice());
+
+        let entries = index_table.all_entries().collect::<Vec<_>>();
+        assert_eq!(entries.len(), 1);
+        let function = entries[0].symbol.kind.function().unwrap();
+
+        assert_eq!(
+            function.return_type,
+            Some(TypeKind::Identifier(
+                "Foo".to_owned(),
+                Some("foo.ts::Foo".to_owned())
+            ))
+        );
     }
 }

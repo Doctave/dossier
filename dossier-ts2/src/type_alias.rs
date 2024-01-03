@@ -1,5 +1,5 @@
 use crate::{
-    symbols::{Symbol, SymbolKind, SymbolTable, TableEntry, Source},
+    symbols::{Symbol, SymbolKind, SymbolTable, Source},
     ParserContext, type_kind,
 };
 use dossier_core::{tree_sitter::Node, Result};
