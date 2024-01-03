@@ -21,7 +21,7 @@ fn main() {
             match entry {
                 Ok(path) => {
                     let file = PathBuf::from(&path);
-                    if file.is_file() {
+                    if file.is_dir() {
                         continue;
                     }
 
@@ -34,11 +34,11 @@ fn main() {
 
     let typescript_files = input_files
         .iter()
-        .filter(|f| f.extension() == Some(OsStr::new(".ts")))
+        .filter(|f| f.extension() == Some(OsStr::new("ts")))
         .map(|p| p.as_path())
         .collect::<Vec<_>>();
 
-    let parser = dossier_ts::Parser::default();
+    let parser = dossier_ts2::TypeScriptParser::new();
 
     match parser.parse(typescript_files, &mut dossier_core::Context::new()) {
         Ok(mut entities) => {

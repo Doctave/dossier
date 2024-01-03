@@ -12,7 +12,20 @@ use symbols::{SymbolTable, TableEntry};
 
 use std::path::Path;
 
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct TypeScriptParser {}
+
+impl TypeScriptParser {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+const LANGUAGE: &str = "ts";
+
+trait IntoEntity {
+    fn into_entity(self) -> dossier_core::Entity;
+}
 
 impl dossier_core::DocsParser for TypeScriptParser {
     fn parse<'a, P: Into<&'a Path>, T: IntoIterator<Item = P>>(
@@ -28,7 +41,9 @@ impl dossier_core::DocsParser for TypeScriptParser {
             let code = std::fs::read_to_string(path).unwrap();
             let ctx = ParserContext::new(path, &code);
 
-            symbols.push(parse_file(&ctx)?);
+            let symbol_table = parse_file(&ctx)?;
+
+            symbols.push(symbol_table);
         }
 
         for table in symbols.iter_mut() {
@@ -42,9 +57,19 @@ impl dossier_core::DocsParser for TypeScriptParser {
             window.push(table);
         }
 
-        println!("{:#?}", window);
+        let mut entities = vec![];
+        for table in window {
+            for entry in table.all_entries() {
+                match entry.symbol.kind {
+                    symbols::SymbolKind::Function(ref function) => {
+                        entities.push(function.clone().into_entity());
+                    }
+                    _ => {}
+                }
+            }
+        }
 
-        unimplemented!()
+        Ok(entities)
     }
 }
 

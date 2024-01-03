@@ -1,11 +1,14 @@
+use std::path::PathBuf;
+
+use dossier_core::serde_json::json;
 use dossier_core::tree_sitter::{Node, Query, QueryCursor};
-use dossier_core::{helpers::*, Result};
+use dossier_core::{helpers::*, Entity, Result};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
-use crate::helpers::*;
 use crate::symbols::Source;
 use crate::type_kind::{self, TypeKind};
+use crate::{helpers::*, IntoEntity};
 use crate::{
     symbols::{Symbol, SymbolKind, SymbolTable},
     ParserContext,
@@ -32,6 +35,27 @@ pub(crate) struct Function {
     pub documentation: Option<String>,
     pub is_exported: bool,
     pub return_type: Option<TypeKind>,
+}
+
+impl IntoEntity for Function {
+    fn into_entity(self) -> Entity {
+        Entity {
+            title: self.identifier,
+            description: self.documentation.unwrap_or_default(),
+            kind: "function".to_owned(),
+            identity: dossier_core::Identity::FQN("TODO".to_owned()),
+            members: vec![],
+            member_context: None,
+            language: crate::LANGUAGE.to_owned(),
+            source: dossier_core::Source {
+                file: PathBuf::from("TODO"),
+                start_offset_bytes: 0,
+                end_offset_bytes: 0,
+                repository: None,
+            },
+            meta: json!({}),
+        }
+    }
 }
 
 pub(crate) fn parse(

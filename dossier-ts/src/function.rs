@@ -86,7 +86,12 @@ pub(crate) fn parse_from_node(
         .collect::<Vec<_>>())
 }
 
-fn parse_return_type<'a>(node: &Node<'a>, path: &Path, code: &'a str, _ctx: &mut Context) -> Entity {
+fn parse_return_type<'a>(
+    node: &Node<'a>,
+    path: &Path,
+    code: &'a str,
+    _ctx: &mut Context,
+) -> Entity {
     let title = node
         .utf8_text(code.as_bytes())
         .unwrap()

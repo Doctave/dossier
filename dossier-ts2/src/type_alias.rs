@@ -1,9 +1,9 @@
+use crate::type_kind::TypeKind;
 use crate::{
-    symbols::{Symbol, SymbolKind, SymbolTable, Source},
-    ParserContext, type_kind,
+    symbols::{Source, Symbol, SymbolKind, SymbolTable},
+    type_kind, ParserContext,
 };
 use dossier_core::{tree_sitter::Node, Result};
-use crate::type_kind::TypeKind;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TypeAlias {
