@@ -17,12 +17,21 @@ pub(crate) struct Symbol {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum SymbolKind {
     Function(crate::function::Function),
+    TypeAlias(crate::type_alias::TypeAlias),
 }
 
 impl SymbolKind {
     pub fn function(&self) -> Option<&crate::function::Function> {
         match self {
             SymbolKind::Function(f) => Some(f),
+            _ => None,
+        }
+    }
+
+    pub fn type_alias(&self) -> Option<&crate::type_alias::TypeAlias> {
+        match self {
+            SymbolKind::TypeAlias(a) => Some(a),
+            _ => None,
         }
     }
 }
@@ -244,7 +253,7 @@ mod test {
             "foo",
             Symbol {
                 kind: SymbolKind::Function(crate::function::Function {
-                    title: "foo".to_owned(),
+                    identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
                 }),
@@ -262,7 +271,7 @@ mod test {
                 kind: SymbolKind::Function(f),
                 ..
             }) => {
-                assert_eq!(f.title, "foo");
+                assert_eq!(f.identifier, "foo");
             }
             _ => panic!("Expected a function symbol"),
         }
@@ -278,7 +287,7 @@ mod test {
             "foo",
             Symbol {
                 kind: SymbolKind::Function(crate::function::Function {
-                    title: "foo".to_owned(),
+                    identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
                 }),
@@ -302,7 +311,7 @@ mod test {
             "foo",
             Symbol {
                 kind: SymbolKind::Function(crate::function::Function {
-                    title: "foo".to_owned(),
+                    identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
                 }),
@@ -328,7 +337,7 @@ mod test {
             "foo",
             Symbol {
                 kind: SymbolKind::Function(crate::function::Function {
-                    title: "foo".to_owned(),
+                    identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
                 }),
@@ -345,7 +354,7 @@ mod test {
             "bar",
             Symbol {
                 kind: SymbolKind::Function(crate::function::Function {
-                    title: "bar".to_owned(),
+                    identifier: "bar".to_owned(),
                     documentation: None,
                     is_exported: false,
                 }),

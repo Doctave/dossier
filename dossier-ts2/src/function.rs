@@ -27,7 +27,7 @@ pub(crate) const NODE_KIND: &str = "function_declaration";
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Function {
-    pub title: String,
+    pub identifier: String,
     pub documentation: Option<String>,
     pub is_exported: bool,
 }
@@ -53,13 +53,13 @@ pub(crate) fn parse(
 
     let docs = find_docs(&main_node, ctx.code);
 
-    let title = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
+    let identifier = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
 
     Ok((
-        title.clone(),
+        identifier.clone(),
         Symbol {
             kind: SymbolKind::Function(Function {
-                title,
+                identifier,
                 documentation: docs.map(process_comment),
                 is_exported: is_exported(&main_node),
             }),

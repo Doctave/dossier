@@ -2,6 +2,8 @@ mod function;
 mod helpers;
 mod import;
 mod symbols;
+mod type_alias;
+mod type_kind;
 
 use dossier_core::tree_sitter::{Node, Parser};
 use dossier_core::Result;
@@ -76,8 +78,12 @@ fn parse_file(ctx: &ParserContext) -> Result<SymbolTable> {
 pub(crate) trait ParseSymbol {
     /// A trait for parsing a symbol into a table entry from a node.
     ///
-    /// Can be called recursive to construct 
-    fn parse(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -> Result<(String, TableEntry)>;
+    /// Can be called recursive to construct
+    fn parse(
+        node: &Node,
+        table: &mut SymbolTable,
+        ctx: &ParserContext,
+    ) -> Result<(String, TableEntry)>;
 }
 
 fn handle_node(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -> Result<()> {
@@ -86,11 +92,15 @@ fn handle_node(node: &Node, table: &mut SymbolTable, ctx: &ParserContext) -> Res
         import::NODE_KIND => {
             let import = import::parse(node, table, ctx)?;
             table.add_import(import);
-        },
+        }
         function::NODE_KIND => {
             let (identifier, entry) = function::parse(node, table, ctx)?;
             table.add_symbol(&identifier, entry);
-        },
+        }
+        type_alias::NODE_KIND => {
+            let (identifier, entry) = type_alias::parse(node, table, ctx)?;
+            table.add_symbol(&identifier, entry);
+        }
         _ => {
             println!("Unhandled node: {}", node.kind());
         }
@@ -115,6 +125,8 @@ impl<'a> ParserContext<'a> {
 mod test {
     use indoc::indoc;
 
+    use crate::type_kind::TypeKind;
+
     use super::*;
 
     #[test]
@@ -135,17 +147,20 @@ mod test {
         let table = parse_file(&ParserContext::new(Path::new("index.ts"), source)).unwrap();
 
         let entries = table.all_entries().collect::<Vec<_>>();
-        
-        let entry = &entries[0];
+
+        let entry = entries[0];
         let function = entry.kind.symbol().unwrap().kind.function().unwrap();
 
-        assert_eq!(function.title, "foo".to_string());
-        assert_eq!(function.documentation, Some("The documentation".to_string()));
-        
-        let entry = &entries[1];
+        assert_eq!(function.identifier, "foo".to_string());
+        assert_eq!(
+            function.documentation,
+            Some("The documentation".to_string())
+        );
+
+        let entry = entries[1];
         let function = entry.kind.symbol().unwrap().kind.function().unwrap();
 
-        assert_eq!(function.title, "bar".to_string());
+        assert_eq!(function.identifier, "bar".to_string());
         assert_eq!(function.documentation, None);
 
         assert_eq!(entries.len(), 2);
@@ -171,5 +186,23 @@ mod test {
 
         assert_eq!(imports[0].names, vec!["Foo"]);
         assert_eq!(imports[0].source, "./foo.ts");
+    }
+
+    #[test]
+    fn parses_type_definitions() {
+        let source = indoc! { r#"
+        type Foo = string;
+        "#};
+
+        let table = parse_file(&ParserContext::new(Path::new("index.ts"), source)).unwrap();
+
+        let entries = table.all_entries().collect::<Vec<_>>();
+        assert_eq!(entries.len(), 1);
+
+        let entry = entries[0];
+        let alias = entry.kind.symbol().unwrap().kind.type_alias().unwrap();
+
+        assert_eq!(alias.identifier, "Foo");
+        assert_eq!(alias.type_kind, TypeKind::Predefined("string".to_owned()));
     }
 }
