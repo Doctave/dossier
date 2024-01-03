@@ -35,8 +35,10 @@ pub type FullyQualifiedName = String;
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum Identity {
     /// The fully qualified name of an entity
+    #[serde(rename = "fqn")]
     FQN(FullyQualifiedName),
     /// A reference to another entity via its fully qualified name
+    #[serde(rename = "refers_to")]
     Reference(FullyQualifiedName),
 }
 
@@ -55,6 +57,7 @@ pub struct Entity {
     ///
     /// E.g. a class declaration will have an identity of its fully qualified name, but a
     /// function's return position will have an reference to another entity that describes its type.
+    #[serde(flatten)]
     pub identity: Identity,
     /// Child entities. E.g. classes may contain functions, modules may have child modules, etc.
     #[serde(skip_serializing_if = "Vec::is_empty")]

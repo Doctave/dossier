@@ -23,10 +23,6 @@ impl TypeScriptParser {
 
 const LANGUAGE: &str = "ts";
 
-trait IntoEntity {
-    fn into_entity(self) -> dossier_core::Entity;
-}
-
 impl dossier_core::DocsParser for TypeScriptParser {
     fn parse<'a, P: Into<&'a Path>, T: IntoIterator<Item = P>>(
         &self,
@@ -60,12 +56,8 @@ impl dossier_core::DocsParser for TypeScriptParser {
         let mut entities = vec![];
         for table in window {
             for symbol in table.all_symbols() {
-                match symbol.kind {
-                    symbols::SymbolKind::Function(ref function) => {
-                        entities.push(function.clone().into_entity());
-                    }
-                    _ => {}
-                }
+                let entity = symbol.as_entity();
+                entities.push(entity);
             }
         }
 

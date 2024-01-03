@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicUsize;
 
-use dossier_core::indexmap::IndexMap;
+use dossier_core::{indexmap::IndexMap, Entity};
 
 use crate::function::Function;
 use crate::import::Import;
@@ -13,6 +13,15 @@ pub(crate) struct Symbol {
     pub kind: SymbolKind,
     pub source: Source,
     pub fqn: String,
+}
+
+impl Symbol {
+    pub fn as_entity(&self) -> Entity {
+        match &self.kind {
+            SymbolKind::Function(f) => f.as_entity(&self.source, &self.fqn),
+            SymbolKind::TypeAlias(a) => a.as_entity(&self.source, &self.fqn),
+        }
+    }
 }
 
 /// The type of the symbol.
@@ -214,7 +223,11 @@ impl SymbolTable {
                     if let Some(matching_symbol) =
                         imported_table.lookup(&identifier, imported_table.root_scope().id)
                     {
-                        lookup_results.push((scope_index, symbol_name, matching_symbol.fqn.clone()));
+                        lookup_results.push((
+                            scope_index,
+                            symbol_name,
+                            matching_symbol.fqn.clone(),
+                        ));
                     }
                 }
             }

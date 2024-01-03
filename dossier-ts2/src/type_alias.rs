@@ -3,12 +3,34 @@ use crate::{
     symbols::{Source, Symbol, SymbolKind},
     type_kind, ParserContext,
 };
-use dossier_core::{tree_sitter::Node, Result};
+use dossier_core::serde_json::json;
+use dossier_core::{tree_sitter::Node, Entity, Result};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TypeAlias {
     pub identifier: String,
     pub type_kind: TypeKind,
+}
+
+impl TypeAlias {
+    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+        Entity {
+            title: self.identifier.clone(),
+            description: String::new(),
+            kind: "type_alias".to_owned(),
+            identity: dossier_core::Identity::FQN(fqn.to_owned()),
+            members: vec![],
+            member_context: None,
+            language: crate::LANGUAGE.to_owned(),
+            source: dossier_core::Source {
+                file: source.file.to_owned(),
+                start_offset_bytes: source.offset_start_bytes,
+                end_offset_bytes: source.offset_end_bytes,
+                repository: None,
+            },
+            meta: json!({}),
+        }
+    }
 }
 
 pub(crate) const NODE_KIND: &str = "type_alias_declaration";
