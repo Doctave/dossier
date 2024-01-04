@@ -1,6 +1,7 @@
 mod function;
 mod helpers;
 mod import;
+mod property;
 mod symbol;
 mod symbol_table;
 mod type_alias;

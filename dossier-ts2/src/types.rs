@@ -1,5 +1,5 @@
 use crate::{
-    symbol::{Source, Symbol, SymbolKind},
+    symbol::{Source, Symbol, SymbolContext, SymbolKind},
     ParserContext,
 };
 use dossier_core::{tree_sitter::Node, Entity, Result};
@@ -14,6 +14,11 @@ pub(crate) enum Type {
     /// When the type has been resolved, the second element in the tuple will
     /// contain the FQN of the type.
     Identifier(String, Option<ResolvedTypeFQN>),
+    Object {
+        // TODO(Nik): What is the real identifier here?
+        raw_string: String,
+        properties: Vec<Symbol>,
+    },
 }
 
 impl Type {
@@ -21,20 +26,26 @@ impl Type {
         match self {
             Type::Predefined(type_name) => type_name.as_str(),
             Type::Identifier(identifier, _) => identifier.as_str(),
+            Type::Object { raw_string, .. } => raw_string.as_str(),
         }
     }
 
     pub fn children(&self) -> &[Symbol] {
         match self {
-            Type::Predefined(_) => &[],
-            Type::Identifier(_, _) => &[],
+            Type::Object {
+                properties: fields, ..
+            } => fields,
+            _ => &[],
         }
     }
 
     pub fn children_mut(&mut self) -> &mut [Symbol] {
         match self {
-            Type::Predefined(_) => &mut [],
-            Type::Identifier(_, _) => &mut [],
+            Type::Object {
+                properties: ref mut fields,
+                ..
+            } => fields,
+            _ => &mut [],
         }
     }
 
@@ -44,17 +55,18 @@ impl Type {
 
     pub fn resolvable_identifier(&self) -> Option<&str> {
         match self {
-            Type::Predefined(_) => None,
             Type::Identifier(identifier, _referred_fqn) => Some(identifier.as_str()),
+            _ => None,
         }
     }
 
     pub fn resolve_type(&mut self, fqn: &str) {
+        #[allow(clippy::single_match)]
         match self {
-            Type::Predefined(_) => {}
             Type::Identifier(_, referred_fqn) => {
                 *referred_fqn = Some(fqn.to_owned());
             }
+            _ => {}
         }
     }
 }
@@ -79,6 +91,42 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             Ok(Symbol {
                 fqn: ctx.construct_fqn(&type_name),
                 kind: SymbolKind::Type(Type::Identifier(type_name, None)),
+                source: Source {
+                    file: ctx.file.to_owned(),
+                    offset_start_bytes: node.start_byte(),
+                    offset_end_bytes: node.end_byte(),
+                },
+                context: ctx.symbol_context().cloned(),
+            })
+        }
+        "object_type" => {
+            let type_as_string = node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
+            let mut properties = vec![];
+
+            ctx.push_context(SymbolContext::Property);
+
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+            cursor.goto_next_sibling();
+
+            loop {
+                if cursor.node().kind() == crate::property::NODE_KIND {
+                    let symbol = crate::property::parse(&cursor.node(), ctx)?;
+                    properties.push(symbol);
+                }
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+
+            ctx.pop_scope();
+
+            Ok(Symbol {
+                fqn: ctx.construct_fqn("obj"),
+                kind: SymbolKind::Type(Type::Object {
+                    raw_string: type_as_string,
+                    properties,
+                }),
                 source: Source {
                     file: ctx.file.to_owned(),
                     offset_start_bytes: node.start_byte(),
@@ -175,6 +223,54 @@ mod test {
                 assert_eq!(
                     referred_fqn, &None,
                     "The type should not be resolved at this point"
+                );
+            }
+            _ => panic!("Expected a type identifier"),
+        }
+    }
+
+    #[test]
+    fn parses_object_types() {
+        let code = indoc! {r#"
+            type Player = {
+                name: string;
+                age?: number;
+            }
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        match type_def {
+            Type::Object { properties, .. } => {
+                assert_eq!(properties.len(), 2);
+
+                assert_eq!(properties[0].kind.as_property().unwrap().identifier, "name");
+                assert_eq!(
+                    properties[0].kind.as_property().unwrap().children[0]
+                        .kind
+                        .as_type()
+                        .unwrap(),
+                    &Type::Predefined("string".to_string())
+                );
+                assert_eq!(properties[1].kind.as_property().unwrap().identifier, "age");
+                assert_eq!(
+                    properties[1].kind.as_property().unwrap().children[0]
+                        .kind
+                        .as_type()
+                        .unwrap(),
+                    &Type::Predefined("number".to_string())
                 );
             }
             _ => panic!("Expected a type identifier"),

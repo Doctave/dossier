@@ -22,6 +22,7 @@ impl Symbol {
             SymbolKind::Function(f) => f.as_entity(&self.source, &self.fqn),
             SymbolKind::TypeAlias(a) => a.as_entity(&self.source, &self.fqn),
             SymbolKind::Type(t) => t.as_entity(&self.source, &self.fqn),
+            SymbolKind::Property(p) => p.as_entity(&self.source, &self.fqn),
         }
     }
 
@@ -30,6 +31,7 @@ impl Symbol {
             SymbolKind::Function(f) => f.identifier.as_str(),
             SymbolKind::TypeAlias(a) => a.identifier.as_str(),
             SymbolKind::Type(t) => t.identifier(),
+            SymbolKind::Property(p) => p.identifier.as_str()
         }
     }
 
@@ -38,6 +40,7 @@ impl Symbol {
             SymbolKind::Function(f) => f.children.as_slice(),
             SymbolKind::TypeAlias(a) => a.children.as_slice(),
             SymbolKind::Type(t) => t.children(),
+            SymbolKind::Property(p) => p.children.as_slice(),
         }
     }
 
@@ -46,6 +49,7 @@ impl Symbol {
             SymbolKind::Function(ref mut f) => f.children.as_mut_slice(),
             SymbolKind::TypeAlias(ref mut a) => a.children.as_mut_slice(),
             SymbolKind::Type(ref mut t) => t.children_mut(),
+            SymbolKind::Property(ref mut p) => p.children.as_mut_slice(),
         }
     }
 
@@ -66,6 +70,7 @@ impl Symbol {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum SymbolContext {
     ReturnType,
+    Property,
 }
 
 /// The type of the symbol.
@@ -75,6 +80,7 @@ pub(crate) enum SymbolKind {
     Function(crate::function::Function),
     TypeAlias(crate::type_alias::TypeAlias),
     Type(crate::types::Type),
+    Property(crate::property::Property),
 }
 
 impl SymbolKind {
@@ -98,6 +104,14 @@ impl SymbolKind {
     pub fn as_type(&self) -> Option<&crate::types::Type> {
         match self {
             SymbolKind::Type(t) => Some(t),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn as_property(&self) -> Option<&crate::property::Property> {
+        match self {
+            SymbolKind::Property(p) => Some(p),
             _ => None,
         }
     }
