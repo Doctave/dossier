@@ -5,11 +5,9 @@ use indoc::indoc;
 use lazy_static::lazy_static;
 
 use crate::helpers::*;
-use crate::symbols::Source;
-use crate::types;
 use crate::{
-    symbols::{Symbol, SymbolKind},
-    ParserContext,
+    symbol::{Source, Symbol, SymbolKind},
+    types, ParserContext,
 };
 
 const QUERY_STRING: &str = indoc! {"

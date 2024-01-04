@@ -1,5 +1,5 @@
 use crate::{
-    symbols::{Source, Symbol, SymbolKind},
+    symbol::{Source, Symbol, SymbolKind},
     types, ParserContext,
 };
 use dossier_core::serde_json::json;

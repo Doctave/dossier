@@ -1,14 +1,15 @@
 mod function;
 mod helpers;
 mod import;
-mod symbols;
+mod symbol;
+mod symbol_table;
 mod type_alias;
 mod types;
 
 use dossier_core::tree_sitter::{Node, Parser};
 use dossier_core::Result;
 
-use symbols::SymbolTable;
+use symbol_table::SymbolTable;
 
 use std::path::Path;
 
