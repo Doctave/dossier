@@ -9,7 +9,8 @@ mod types;
 use dossier_core::tree_sitter::{Node, Parser};
 use dossier_core::Result;
 
-use symbol_table::SymbolTable;
+use symbol::SymbolContext;
+use symbol_table::{ScopeID, SymbolTable};
 
 use std::path::Path;
 
@@ -100,7 +101,7 @@ fn parse_file(mut ctx: ParserContext) -> Result<SymbolTable> {
         }
     }
 
-    Ok(ctx.symbol_table)
+    Ok(ctx.take_symbol_table())
 }
 
 fn handle_node(node: &Node, ctx: &mut ParserContext) -> Result<()> {
@@ -131,7 +132,8 @@ fn handle_node(node: &Node, ctx: &mut ParserContext) -> Result<()> {
 pub(crate) struct ParserContext<'a> {
     file: &'a Path,
     code: &'a str,
-    pub symbol_table: SymbolTable,
+    symbol_table: SymbolTable,
+    pub symbol_context: Vec<SymbolContext>,
 }
 
 impl<'a> ParserContext<'a> {
@@ -140,11 +142,36 @@ impl<'a> ParserContext<'a> {
             file: path,
             code,
             symbol_table: SymbolTable::new(path),
+            symbol_context: vec![],
         }
+    }
+
+    fn take_symbol_table(self) -> SymbolTable {
+        self.symbol_table
     }
 
     fn construct_fqn(&self, identifier: &str) -> String {
         self.symbol_table.construct_fqn(identifier)
+    }
+
+    pub fn push_scope(&mut self, name: &str) -> ScopeID {
+        self.symbol_table.push_scope(name)
+    }
+
+    pub fn pop_scope(&mut self) {
+        self.symbol_table.pop_scope();
+    }
+
+    pub fn push_context(&mut self, context: SymbolContext) {
+        self.symbol_context.push(context);
+    }
+
+    pub fn pop_context(&mut self) {
+        self.symbol_context.pop();
+    }
+
+    pub fn symbol_context(&self) -> Option<&SymbolContext> {
+        self.symbol_context.last()
     }
 }
 
@@ -192,7 +219,7 @@ mod test {
         assert_eq!(function.identifier, "bar".to_string());
         assert_eq!(function.documentation, None);
         assert_eq!(
-            function.return_type.as_ref().unwrap().kind.as_type(),
+            function.return_type().as_ref().unwrap().kind.as_type(),
             Some(&Type::Predefined("string".to_owned()))
         );
 
@@ -237,7 +264,7 @@ mod test {
 
         assert_eq!(alias.identifier, "Foo");
         assert_eq!(
-            alias.type_kind.kind.as_type(),
+            alias.the_type().kind.as_type(),
             Some(&Type::Predefined("string".to_owned()))
         );
     }
@@ -262,7 +289,7 @@ mod test {
         let function = symbols[1].kind.as_function().unwrap();
 
         assert_eq!(
-            function.return_type.as_ref().unwrap().kind.as_type(),
+            function.return_type().as_ref().unwrap().kind.as_type(),
             Some(&Type::Identifier(
                 "Foo".to_owned(),
                 Some("index.ts::Foo".to_owned())
@@ -300,7 +327,7 @@ mod test {
         let function = symbols[0].kind.as_function().unwrap();
 
         assert_eq!(
-            function.return_type.as_ref().unwrap().kind.as_type(),
+            function.return_type().as_ref().unwrap().kind.as_type(),
             Some(&Type::Identifier(
                 "Foo".to_owned(),
                 Some("foo.ts::Foo".to_owned())

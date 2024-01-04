@@ -24,8 +24,38 @@ impl Type {
         }
     }
 
+    pub fn children(&self) -> &[Symbol] {
+        match self {
+            Type::Predefined(_) => &[],
+            Type::Identifier(_, _) => &[],
+        }
+    }
+
+    pub fn children_mut(&mut self) -> &mut [Symbol] {
+        match self {
+            Type::Predefined(_) => &mut [],
+            Type::Identifier(_, _) => &mut [],
+        }
+    }
+
     pub fn as_entity(&self, _source: &Source, _fqn: &str) -> Entity {
         unimplemented!()
+    }
+
+    pub fn resolvable_identifier(&self) -> Option<&str> {
+        match self {
+            Type::Predefined(_) => None,
+            Type::Identifier(identifier, _referred_fqn) => Some(identifier.as_str()),
+        }
+    }
+
+    pub fn resolve_type(&mut self, fqn: &str) {
+        match self {
+            Type::Predefined(_) => {}
+            Type::Identifier(_, referred_fqn) => {
+                *referred_fqn = Some(fqn.to_owned());
+            }
+        }
     }
 }
 
@@ -41,6 +71,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
                     offset_start_bytes: node.start_byte(),
                     offset_end_bytes: node.end_byte(),
                 },
+                context: ctx.symbol_context().cloned(),
             })
         }
         "type_identifier" => {
@@ -53,6 +84,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
                     offset_start_bytes: node.start_byte(),
                     offset_end_bytes: node.end_byte(),
                 },
+                context: ctx.symbol_context().cloned(),
             })
         }
         _ => panic!(

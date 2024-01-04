@@ -8,7 +8,9 @@ use dossier_core::{tree_sitter::Node, Entity, Result};
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TypeAlias {
     pub identifier: String,
-    pub type_kind: Box<Symbol>,
+    /// Technically will ever only have one child, the type itself, but other
+    /// parts of the program will expect a slice of children so this is simpler.
+    pub children: Vec<Symbol>,
 }
 
 impl TypeAlias {
@@ -29,6 +31,11 @@ impl TypeAlias {
             },
             meta: json!({}),
         }
+    }
+
+    #[cfg(test)]
+    pub fn the_type(&self) -> &Symbol {
+        &self.children[0]
     }
 }
 
@@ -56,22 +63,23 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         cursor.goto_next_sibling();
     }
 
-    ctx.symbol_table.push_scope(identifier.as_str());
+    ctx.push_scope(identifier.as_str());
 
     let my_type = types::parse(&cursor.node(), ctx)?;
 
-    ctx.symbol_table.pop_scope();
+    ctx.pop_scope();
 
     Ok(Symbol {
         fqn: ctx.construct_fqn(&identifier),
         kind: SymbolKind::TypeAlias(TypeAlias {
             identifier,
-            type_kind: Box::new(my_type),
+            children: Vec::from([my_type]),
         }),
         source: Source {
             file: ctx.file.to_owned(),
             offset_start_bytes: node.start_byte(),
             offset_end_bytes: node.end_byte(),
         },
+        context: ctx.symbol_context().cloned(),
     })
 }

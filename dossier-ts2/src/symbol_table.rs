@@ -1,16 +1,15 @@
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicUsize;
 
 use dossier_core::indexmap::IndexMap;
 
-use crate::function::Function;
 use crate::import::Import;
-use crate::symbol::{Symbol, SymbolKind};
-use crate::types::Type;
+use crate::symbol::Symbol;
 
 static SCOPE_ID: AtomicUsize = AtomicUsize::new(0);
 
-type ScopeID = usize;
+pub(crate) type ScopeID = usize;
 
 /// The symbol table for a single file.
 #[derive(Debug, Clone, PartialEq)]
@@ -97,51 +96,60 @@ impl SymbolTable {
             .insert(identifier.into(), symbol);
     }
 
+    /// The wildest part of this crate by a long shot. Type resolution!
     pub fn resolve_types(&mut self) {
-        // First pass: collect actions to avoid mutable-immutable borrow conflict
-        let mut actions = Vec::new();
+        // First pass: collect the actions we need to apply to avoid mutable-immutable borrow conflict
+        //
+        // We collect a set of actions where the elements are:
+        // - The scope index
+        // - The root symbol identifier
+        // - The chain of indexes to the child symbols which needs resolving
+        // - The identifier in the symbol that needs resolving
+        let mut actions: Vec<(usize, String, VecDeque<usize>, String)> = vec![];
+
         for (scope_index, scope) in self.scopes.iter().enumerate() {
-            for (symbol_name, symbol) in &scope.symbols {
-                if let SymbolKind::Function(Function {
-                    return_type: Some(symbol),
-                    ..
-                }) = &symbol.kind
-                {
-                    if let Some(Type::Identifier(identifier, fqn)) = symbol.kind.as_type() {
-                        if fqn.is_none() {
-                            actions.push((scope_index, symbol_name.clone(), identifier.clone()));
-                        }
-                    }
-                }
+            let index_chain = VecDeque::new();
+
+            for (root_symbol_identifier, symbol) in scope.symbols.iter() {
+                let mut chain = index_chain.clone();
+                // Collect a list of IDs to symbols which need resolving
+                Self::collect_actions_recursive(
+                    symbol,
+                    scope_index,
+                    root_symbol_identifier,
+                    &mut chain,
+                    &mut actions,
+                );
             }
         }
 
-        // Perform lookups based on collected actions
-        let mut lookup_results = Vec::new();
-        for (scope_index, symbol_name, identifier) in actions {
-            if let Some(matching_symbol) = self.lookup(&identifier, self.scopes[scope_index].id) {
-                lookup_results.push((scope_index, symbol_name, matching_symbol.fqn.clone()));
+        let mut resolutions: Vec<(usize, String, VecDeque<usize>, String)> = vec![];
+        // Second pass: perform the lookups and collect the results
+        //
+        // Look up the identifier from its scope. If we find a match, we add it to the resolutions,
+        // which is an identical list as above, except the last element is the resolved FQN of the symbol
+        for (scope_index, root_symbol_identifier, child_indexes, identifier) in actions {
+            let scope_id = self.scopes[scope_index].id;
+
+            if let Some(matching_symbol) = self.lookup(&identifier, scope_id) {
+                resolutions.push((
+                    scope_index,
+                    root_symbol_identifier,
+                    child_indexes,
+                    matching_symbol.fqn.clone(),
+                ));
             }
         }
 
-        // Second pass: apply the lookup results
-        for (scope_index, symbol_name, fqn) in lookup_results {
+        // Third pass: apply the resolutions back to the symbols
+        for (scope_index, root_symbol_identifier, indexes, fqn) in resolutions {
             if let Some(symbol) = self
                 .scopes
                 .get_mut(scope_index)
-                .and_then(|s| s.symbols.get_mut(&symbol_name))
+                .and_then(|s| s.symbols.get_mut(root_symbol_identifier.as_str()))
             {
-                if let SymbolKind::Function(Function {
-                    // return_type: Some(Type::Identifier(_, ref mut symbol_fqn)),
-                    return_type: Some(symbol),
-                    ..
-                }) = &mut symbol.kind
-                {
-                    if let Some(Type::Identifier(_, ref mut symbol_fqn)) = symbol.kind.as_type_mut()
-                    {
-                        *symbol_fqn = Some(fqn);
-                    }
-                }
+                let symbol = Self::resolve_symbol_mut(symbol, indexes); // Use slicing to pass the rest of the indexes
+                symbol.resolve_type(&fqn);
             }
         }
     }
@@ -151,39 +159,51 @@ impl SymbolTable {
         &mut self,
         all_tables: T,
     ) {
-        let mut all_tables = all_tables.into_iter();
+        // First pass: collect the actions we need to apply to avoid mutable-immutable borrow conflict
+        //
+        // We collect a set of actions where the elements are:
+        // - The scope index
+        // - The root symbol identifier
+        // - The chain of indexes to the child symbols which needs resolving
+        // - The identifier in the symbol that needs resolving
+        let mut actions: Vec<(usize, String, VecDeque<usize>, String)> = vec![];
 
-        // First pass: collect actions to avoid mutable-immutable borrow conflict
-        let mut actions = Vec::new();
         for (scope_index, scope) in self.scopes.iter().enumerate() {
-            for (symbol_name, symbol) in &scope.symbols {
-                if let SymbolKind::Function(Function {
-                    return_type: Some(symbol),
-                    ..
-                }) = &symbol.kind
-                {
-                    if let Some(Type::Identifier(identifier, fqn)) = symbol.kind.as_type() {
-                        if fqn.is_none() {
-                            actions.push((scope_index, symbol_name.clone(), identifier.clone()));
-                        }
-                    }
-                }
+            let index_chain = VecDeque::new();
+
+            for (root_symbol_identifier, symbol) in scope.symbols.iter() {
+                let mut chain = index_chain.clone();
+                // Collect a list of IDs to symbols which need resolving
+                Self::collect_actions_recursive(
+                    symbol,
+                    scope_index,
+                    root_symbol_identifier,
+                    &mut chain,
+                    &mut actions,
+                );
             }
         }
 
-        // Perform lookups based on collected actions
-        let mut lookup_results = Vec::new();
-        for (scope_index, symbol_name, identifier) in actions {
-            if let Some(import) = self.lookup_import(&identifier, self.scopes[scope_index].id) {
+        let mut resolutions: Vec<(usize, String, VecDeque<usize>, String)> = vec![];
+        let mut all_tables = all_tables.into_iter();
+        // Second pass: perform the lookups and collect the results
+        //
+        // Look up the identifier from its scope. If we find a match, we add it to the resolutions,
+        // which is an identical list as above, except the last element is the resolved FQN of the symbol
+        for (scope_index, root_symbol_identifier, child_indexes, identifier) in actions {
+            let scope_id = self.scopes[scope_index].id;
+
+            if let Some(import) = self.lookup_import(&identifier, scope_id) {
                 if let Some(imported_table) =
                     all_tables.find(|t| self.matches_import_path(&t.file, import))
                 {
                     if let Some(matching_symbol) =
                         imported_table.lookup(&identifier, imported_table.root_scope().id)
                     {
-                        lookup_results.push((
+                        resolutions.push((
                             scope_index,
-                            symbol_name,
+                            root_symbol_identifier,
+                            child_indexes,
                             matching_symbol.fqn.clone(),
                         ));
                     }
@@ -191,25 +211,57 @@ impl SymbolTable {
             }
         }
 
-        // Second pass: apply the lookup results
-        for (scope_index, symbol_name, fqn) in lookup_results {
+        // Third pass: apply the resolutions back to the symbols
+        for (scope_index, root_symbol_identifier, indexes, fqn) in resolutions {
             if let Some(symbol) = self
                 .scopes
                 .get_mut(scope_index)
-                .and_then(|s| s.symbols.get_mut(&symbol_name))
+                .and_then(|s| s.symbols.get_mut(root_symbol_identifier.as_str()))
             {
-                if let SymbolKind::Function(Function {
-                    // return_type: Some(Type::Identifier(_, ref mut symbol_fqn)),
-                    return_type: Some(symbol),
-                    ..
-                }) = &mut symbol.kind
-                {
-                    if let Some(Type::Identifier(_, ref mut symbol_fqn)) = symbol.kind.as_type_mut()
-                    {
-                        *symbol_fqn = Some(fqn);
-                    }
-                }
+                let symbol = Self::resolve_symbol_mut(symbol, indexes); // Use slicing to pass the rest of the indexes
+                symbol.resolve_type(&fqn);
             }
+        }
+    }
+
+    /// Helper function to recursively collect a list of actions to perform=
+    /// during type resolution.
+    fn collect_actions_recursive(
+        symbol: &Symbol,
+        scope_index: usize,
+        root_symbol_identifier: &str,
+        chain: &mut VecDeque<usize>,
+        actions: &mut Vec<(usize, String, VecDeque<usize>, String)>,
+    ) {
+        if let Some(resolvable_identifier) = symbol.resolvable_identifier() {
+            actions.push((
+                scope_index,
+                root_symbol_identifier.to_owned(),
+                chain.clone(),
+                resolvable_identifier.to_owned(),
+            ));
+        }
+
+        for (child_index, child) in symbol.children().iter().enumerate() {
+            let mut chain = chain.clone();
+            chain.push_back(child_index);
+
+            Self::collect_actions_recursive(
+                child,
+                scope_index,
+                root_symbol_identifier,
+                &mut chain,
+                actions,
+            );
+        }
+    }
+
+    /// Helper function to recursively resolve a symbol based on a list of nested indexes.
+    fn resolve_symbol_mut(symbol: &mut Symbol, mut indexes: VecDeque<usize>) -> &mut Symbol {
+        if let Some(index) = indexes.pop_front() {
+            Self::resolve_symbol_mut(symbol.children_mut().get_mut(index).unwrap(), indexes)
+        } else {
+            symbol
         }
     }
 
@@ -338,7 +390,7 @@ impl SymbolTable {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::symbol::Source;
+    use crate::symbol::{SymbolKind, Source};
 
     #[test]
     fn symbol_table_lookup() {
@@ -350,7 +402,7 @@ mod test {
                     identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
-                    return_type: None,
+                    children: vec![],
                 }),
                 source: Source {
                     file: PathBuf::from("foo.ts"),
@@ -358,6 +410,7 @@ mod test {
                     offset_end_bytes: 0,
                 },
                 fqn: "foo.ts::foo".to_owned(),
+                context: None,
             },
         );
 
@@ -387,7 +440,7 @@ mod test {
                     identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
-                    return_type: None,
+                    children: vec![],
                 }),
                 source: Source {
                     file: PathBuf::from("foo.ts"),
@@ -395,6 +448,7 @@ mod test {
                     offset_end_bytes: 0,
                 },
                 fqn: "foo.ts::foo".to_owned(),
+                context: None,
             },
         );
 
@@ -414,7 +468,7 @@ mod test {
                     identifier: "foo".to_owned(),
                     documentation: None,
                     is_exported: false,
-                    return_type: None,
+                    children: vec![],
                 }),
                 source: Source {
                     file: PathBuf::from("foo.ts"),
@@ -422,6 +476,7 @@ mod test {
                     offset_end_bytes: 0,
                 },
                 fqn: "foo.ts::foo".to_owned(),
+                context: None,
             },
         );
 

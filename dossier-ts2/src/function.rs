@@ -5,6 +5,7 @@ use indoc::indoc;
 use lazy_static::lazy_static;
 
 use crate::helpers::*;
+use crate::symbol::SymbolContext;
 use crate::{
     symbol::{Source, Symbol, SymbolKind},
     types, ParserContext,
@@ -30,7 +31,7 @@ pub(crate) struct Function {
     pub identifier: String,
     pub documentation: Option<String>,
     pub is_exported: bool,
-    pub return_type: Option<Box<Symbol>>,
+    pub children: Vec<Symbol>,
 }
 
 impl Function {
@@ -52,10 +53,19 @@ impl Function {
             meta: json!({}),
         }
     }
+
+    #[cfg(test)]
+    pub fn return_type(&self) -> Option<&Symbol> {
+        self.children
+            .iter()
+            .find(|s| s.context == Some(crate::symbol::SymbolContext::ReturnType))
+    }
 }
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     assert_eq!(node.kind(), NODE_KIND);
+
+    let mut children = vec![];
 
     let mut cursor = QueryCursor::new();
     let function = cursor
@@ -65,21 +75,26 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
     let main_node = node_for_capture("function", function.captures, &QUERY).unwrap();
     let name_node = node_for_capture("function_name", function.captures, &QUERY).unwrap();
+
+    let identifier = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
+
+    ctx.push_scope(identifier.as_str());
+
     // let parameter_node = node_for_capture("function_parameters", m.captures, &QUERY);
-    let return_type = node_for_capture("function_return_type", function.captures, &QUERY)
-        .map(|type_node| {
-            let mut type_node_cursor = type_node.walk();
-            type_node_cursor.goto_first_child();
-            while !type_node_cursor.node().is_named() {
-                type_node_cursor.goto_next_sibling();
-            }
-            types::parse(&type_node_cursor.node(), ctx).unwrap()
-        })
-        .map(Box::new);
+    if let Some(type_node) = node_for_capture("function_return_type", function.captures, &QUERY) {
+        let mut type_node_cursor = type_node.walk();
+        type_node_cursor.goto_first_child();
+        while !type_node_cursor.node().is_named() {
+            type_node_cursor.goto_next_sibling();
+        }
+        ctx.push_context(SymbolContext::ReturnType);
+        children.push(types::parse(&type_node_cursor.node(), ctx).unwrap());
+        ctx.pop_context();
+    }
 
     let docs = find_docs(&main_node, ctx.code);
 
-    let identifier = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
+    ctx.pop_scope();
 
     Ok(Symbol {
         fqn: ctx.construct_fqn(&identifier),
@@ -87,13 +102,14 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             identifier,
             documentation: docs.map(process_comment),
             is_exported: is_exported(&main_node),
-            return_type,
+            children,
         }),
         source: Source {
             file: ctx.file.to_owned(),
             offset_start_bytes: main_node.start_byte(),
             offset_end_bytes: main_node.end_byte(),
         },
+        context: ctx.symbol_context().cloned(),
     })
 }
 
