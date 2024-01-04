@@ -5,7 +5,7 @@ use dossier_core::{indexmap::IndexMap, Entity};
 
 use crate::function::Function;
 use crate::import::Import;
-use crate::type_kind::TypeKind;
+use crate::types::Type;
 
 #[derive(Debug, Clone, PartialEq)]
 /// A symbol we've discovered in the source code.
@@ -20,6 +20,7 @@ impl Symbol {
         match &self.kind {
             SymbolKind::Function(f) => f.as_entity(&self.source, &self.fqn),
             SymbolKind::TypeAlias(a) => a.as_entity(&self.source, &self.fqn),
+            SymbolKind::Type(t) => t.as_entity(&self.source, &self.fqn),
         }
     }
 }
@@ -30,11 +31,12 @@ impl Symbol {
 pub(crate) enum SymbolKind {
     Function(crate::function::Function),
     TypeAlias(crate::type_alias::TypeAlias),
+    Type(crate::types::Type),
 }
 
 impl SymbolKind {
     #[cfg(test)]
-    pub fn function(&self) -> Option<&crate::function::Function> {
+    pub fn as_function(&self) -> Option<&crate::function::Function> {
         match self {
             SymbolKind::Function(f) => Some(f),
             _ => None,
@@ -42,9 +44,23 @@ impl SymbolKind {
     }
 
     #[cfg(test)]
-    pub fn type_alias(&self) -> Option<&crate::type_alias::TypeAlias> {
+    pub fn as_type_alias(&self) -> Option<&crate::type_alias::TypeAlias> {
         match self {
             SymbolKind::TypeAlias(a) => Some(a),
+            _ => None,
+        }
+    }
+
+    pub fn as_type(&self) -> Option<&crate::types::Type> {
+        match self {
+            SymbolKind::Type(t) => Some(t),
+            _ => None,
+        }
+    }
+
+    pub fn as_type_mut(&mut self) -> Option<&mut crate::types::Type> {
+        match self {
+            SymbolKind::Type(t) => Some(t),
             _ => None,
         }
     }
@@ -153,12 +169,14 @@ impl SymbolTable {
         for (scope_index, scope) in self.scopes.iter().enumerate() {
             for (symbol_name, symbol) in &scope.symbols {
                 if let SymbolKind::Function(Function {
-                    return_type: Some(TypeKind::Identifier(identifier, fqn)),
+                    return_type: Some(symbol),
                     ..
                 }) = &symbol.kind
                 {
-                    if fqn.is_none() {
-                        actions.push((scope_index, symbol_name.clone(), identifier.clone()));
+                    if let Some(Type::Identifier(identifier, fqn)) = symbol.kind.as_type() {
+                        if fqn.is_none() {
+                            actions.push((scope_index, symbol_name.clone(), identifier.clone()));
+                        }
                     }
                 }
             }
@@ -180,11 +198,15 @@ impl SymbolTable {
                 .and_then(|s| s.symbols.get_mut(&symbol_name))
             {
                 if let SymbolKind::Function(Function {
-                    return_type: Some(TypeKind::Identifier(_, ref mut symbol_fqn)),
+                    // return_type: Some(Type::Identifier(_, ref mut symbol_fqn)),
+                    return_type: Some(symbol),
                     ..
                 }) = &mut symbol.kind
                 {
-                    *symbol_fqn = Some(fqn);
+                    if let Some(Type::Identifier(_, ref mut symbol_fqn)) = symbol.kind.as_type_mut()
+                    {
+                        *symbol_fqn = Some(fqn);
+                    }
                 }
             }
         }
@@ -202,12 +224,14 @@ impl SymbolTable {
         for (scope_index, scope) in self.scopes.iter().enumerate() {
             for (symbol_name, symbol) in &scope.symbols {
                 if let SymbolKind::Function(Function {
-                    return_type: Some(TypeKind::Identifier(identifier, fqn)),
+                    return_type: Some(symbol),
                     ..
                 }) = &symbol.kind
                 {
-                    if fqn.is_none() {
-                        actions.push((scope_index, symbol_name.clone(), identifier.clone()));
+                    if let Some(Type::Identifier(identifier, fqn)) = symbol.kind.as_type() {
+                        if fqn.is_none() {
+                            actions.push((scope_index, symbol_name.clone(), identifier.clone()));
+                        }
                     }
                 }
             }
@@ -241,11 +265,15 @@ impl SymbolTable {
                 .and_then(|s| s.symbols.get_mut(&symbol_name))
             {
                 if let SymbolKind::Function(Function {
-                    return_type: Some(TypeKind::Identifier(_, ref mut symbol_fqn)),
+                    // return_type: Some(Type::Identifier(_, ref mut symbol_fqn)),
+                    return_type: Some(symbol),
                     ..
                 }) = &mut symbol.kind
                 {
-                    *symbol_fqn = Some(fqn);
+                    if let Some(Type::Identifier(_, ref mut symbol_fqn)) = symbol.kind.as_type_mut()
+                    {
+                        *symbol_fqn = Some(fqn);
+                    }
                 }
             }
         }

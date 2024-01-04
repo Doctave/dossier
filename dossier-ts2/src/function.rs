@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 
 use crate::helpers::*;
 use crate::symbols::Source;
-use crate::type_kind::{self, TypeKind};
+use crate::types;
 use crate::{
     symbols::{Symbol, SymbolKind},
     ParserContext,
@@ -32,7 +32,7 @@ pub(crate) struct Function {
     pub identifier: String,
     pub documentation: Option<String>,
     pub is_exported: bool,
-    pub return_type: Option<TypeKind>,
+    pub return_type: Option<Box<Symbol>>,
 }
 
 impl Function {
@@ -68,15 +68,16 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<(String, Sym
     let main_node = node_for_capture("function", function.captures, &QUERY).unwrap();
     let name_node = node_for_capture("function_name", function.captures, &QUERY).unwrap();
     // let parameter_node = node_for_capture("function_parameters", m.captures, &QUERY);
-    let return_type =
-        node_for_capture("function_return_type", function.captures, &QUERY).map(|type_node| {
+    let return_type = node_for_capture("function_return_type", function.captures, &QUERY)
+        .map(|type_node| {
             let mut type_node_cursor = type_node.walk();
             type_node_cursor.goto_first_child();
             while !type_node_cursor.node().is_named() {
                 type_node_cursor.goto_next_sibling();
             }
-            type_kind::parse(&type_node_cursor.node(), ctx).unwrap()
-        });
+            types::parse(&type_node_cursor.node(), ctx).unwrap()
+        })
+        .map(|(_identifier, symbol)| Box::new(symbol));
 
     let docs = find_docs(&main_node, ctx.code);
 

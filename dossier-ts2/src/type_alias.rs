@@ -1,7 +1,6 @@
-use crate::type_kind::TypeKind;
 use crate::{
     symbols::{Source, Symbol, SymbolKind},
-    type_kind, ParserContext,
+    types, ParserContext,
 };
 use dossier_core::serde_json::json;
 use dossier_core::{tree_sitter::Node, Entity, Result};
@@ -9,7 +8,7 @@ use dossier_core::{tree_sitter::Node, Entity, Result};
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TypeAlias {
     pub identifier: String,
-    pub type_kind: TypeKind,
+    pub type_kind: Box<Symbol>,
 }
 
 impl TypeAlias {
@@ -57,7 +56,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<(String, Sym
         cursor.goto_next_sibling();
     }
 
-    let type_kind = type_kind::parse(&cursor.node(), ctx)?;
+    let (_, my_type) = types::parse(&cursor.node(), ctx)?;
 
     Ok((
         identifier.clone(),
@@ -65,7 +64,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<(String, Sym
             fqn: ctx.construct_fqn(&identifier),
             kind: SymbolKind::TypeAlias(TypeAlias {
                 identifier,
-                type_kind,
+                type_kind: Box::new(my_type),
             }),
             source: Source {
                 file: ctx.file.to_owned(),
@@ -74,4 +73,46 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<(String, Sym
             },
         },
     ))
+}
+
+#[cfg(test)]
+mod test {
+    // use super::*;
+    // use dossier_core::tree_sitter::Parser;
+    // use indoc::indoc;
+    // use std::path::Path;
+
+    // #[test]
+    // fn parses_predefined_type() {
+    //     let code = indoc! {r#"
+    //         type Foo = string;
+    //     #"#};
+
+    //     let mut ctx = ParserContext::new(Path::new("index.ts"), code);
+
+    //     let mut parser = Parser::new();
+
+    //     parser
+    //         .set_language(tree_sitter_typescript::language_typescript())
+    //         .expect("Error loading TypeScript grammar");
+
+    //     let tree = parser.parse(ctx.code, None).unwrap();
+    //     let mut cursor = tree.walk();
+    //     cursor.goto_first_child();
+
+    //     let (identifier, symbol) = parse(&cursor.node(), &mut ctx).unwrap();
+
+    //     assert_eq!(identifier, "Foo");
+
+    //     let type_alias = symbol.kind.type_alias().unwrap();
+
+    //     assert_eq!(type_alias.identifier, "Foo");
+
+    //     match *type_alias.type_kind {
+    //         Type::Predefined(predefined_type) => {
+    //             assert_eq!(predefined_type, "string");
+    //         }
+    //         _ => panic!("Expected PredefinedType"),
+    //     }
+    // }
 }

@@ -3,7 +3,7 @@ mod helpers;
 mod import;
 mod symbols;
 mod type_alias;
-mod type_kind;
+mod types;
 
 use dossier_core::tree_sitter::{Node, Parser};
 use dossier_core::Result;
@@ -149,7 +149,7 @@ impl<'a> ParserContext<'a> {
 mod test {
     use indoc::indoc;
 
-    use crate::type_kind::TypeKind;
+    use crate::types::Type;
 
     use super::*;
 
@@ -173,7 +173,7 @@ mod test {
         let symbols = table.all_symbols().collect::<Vec<_>>();
 
         let symbol = symbols[0];
-        let function = symbol.kind.function().unwrap();
+        let function = symbol.kind.as_function().unwrap();
 
         assert_eq!(function.identifier, "foo".to_string());
         assert_eq!(
@@ -184,13 +184,13 @@ mod test {
         assert_eq!(symbol.fqn, "index.ts::foo");
 
         let symbol = symbols[1];
-        let function = symbol.kind.function().unwrap();
+        let function = symbol.kind.as_function().unwrap();
 
         assert_eq!(function.identifier, "bar".to_string());
         assert_eq!(function.documentation, None);
         assert_eq!(
-            function.return_type,
-            Some(TypeKind::Predefined("string".to_owned()))
+            function.return_type.as_ref().unwrap().kind.as_type(),
+            Some(&Type::Predefined("string".to_owned()))
         );
 
         assert_eq!(symbols.len(), 2);
@@ -230,10 +230,13 @@ mod test {
         assert_eq!(symbols.len(), 1);
 
         let symbol = symbols[0];
-        let alias = symbol.kind.type_alias().unwrap();
+        let alias = symbol.kind.as_type_alias().unwrap();
 
         assert_eq!(alias.identifier, "Foo");
-        assert_eq!(alias.type_kind, TypeKind::Predefined("string".to_owned()));
+        assert_eq!(
+            alias.type_kind.kind.as_type(),
+            Some(&Type::Predefined("string".to_owned()))
+        );
     }
 
     #[test]
@@ -253,11 +256,11 @@ mod test {
         let symbols = table.all_symbols().collect::<Vec<_>>();
         assert_eq!(symbols.len(), 2);
 
-        let function = symbols[1].kind.function().unwrap();
+        let function = symbols[1].kind.as_function().unwrap();
 
         assert_eq!(
-            function.return_type,
-            Some(TypeKind::Identifier(
+            function.return_type.as_ref().unwrap().kind.as_type(),
+            Some(&Type::Identifier(
                 "Foo".to_owned(),
                 Some("index.ts::Foo".to_owned())
             ))
@@ -291,11 +294,11 @@ mod test {
 
         let symbols = index_table.all_symbols().collect::<Vec<_>>();
         assert_eq!(symbols.len(), 1);
-        let function = symbols[0].kind.function().unwrap();
+        let function = symbols[0].kind.as_function().unwrap();
 
         assert_eq!(
-            function.return_type,
-            Some(TypeKind::Identifier(
+            function.return_type.as_ref().unwrap().kind.as_type(),
+            Some(&Type::Identifier(
                 "Foo".to_owned(),
                 Some("foo.ts::Foo".to_owned())
             ))
