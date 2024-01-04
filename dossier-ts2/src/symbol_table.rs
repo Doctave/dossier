@@ -390,7 +390,7 @@ impl SymbolTable {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::symbol::{SymbolKind, Source};
+    use crate::symbol::{Source, SymbolKind};
 
     #[test]
     fn symbol_table_lookup() {

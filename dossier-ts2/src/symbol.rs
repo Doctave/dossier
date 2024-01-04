@@ -31,7 +31,7 @@ impl Symbol {
             SymbolKind::Function(f) => f.identifier.as_str(),
             SymbolKind::TypeAlias(a) => a.identifier.as_str(),
             SymbolKind::Type(t) => t.identifier(),
-            SymbolKind::Property(p) => p.identifier.as_str()
+            SymbolKind::Property(p) => p.identifier.as_str(),
         }
     }
 

@@ -315,23 +315,24 @@ mod test {
         let symbols = table.all_symbols().collect::<Vec<_>>();
         assert_eq!(symbols.len(), 2);
 
-        match symbols[1].kind.as_type_alias().unwrap().the_type().kind.as_type().unwrap() {
+        match symbols[1]
+            .kind
+            .as_type_alias()
+            .unwrap()
+            .the_type()
+            .kind
+            .as_type()
+            .unwrap()
+        {
             Type::Object { properties, .. } => {
-                let resolved_type = properties[0]
-                    .kind
-                    .as_property()
-                    .unwrap()
-                    .children[0]
+                let resolved_type = properties[0].kind.as_property().unwrap().children[0]
                     .kind
                     .as_type()
                     .unwrap();
 
                 assert_eq!(
                     resolved_type,
-                    &Type::Identifier(
-                        "Foo".to_owned(),
-                        Some("index.ts::Foo".to_owned())
-                    )
+                    &Type::Identifier("Foo".to_owned(), Some("index.ts::Foo".to_owned()))
                 );
             }
             _ => panic!("Expected an object type"),
@@ -404,23 +405,24 @@ mod test {
         let symbols = index_table.all_symbols().collect::<Vec<_>>();
         assert_eq!(symbols.len(), 1);
 
-        match symbols[0].kind.as_type_alias().unwrap().the_type().kind.as_type().unwrap() {
+        match symbols[0]
+            .kind
+            .as_type_alias()
+            .unwrap()
+            .the_type()
+            .kind
+            .as_type()
+            .unwrap()
+        {
             Type::Object { properties, .. } => {
-                let resolved_type = properties[0]
-                    .kind
-                    .as_property()
-                    .unwrap()
-                    .children[0]
+                let resolved_type = properties[0].kind.as_property().unwrap().children[0]
                     .kind
                     .as_type()
                     .unwrap();
 
                 assert_eq!(
                     resolved_type,
-                    &Type::Identifier(
-                        "Foo".to_owned(),
-                        Some("foo.ts::Foo".to_owned())
-                    )
+                    &Type::Identifier("Foo".to_owned(), Some("foo.ts::Foo".to_owned()))
                 );
             }
             _ => panic!("Expected an object type"),
