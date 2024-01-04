@@ -66,34 +66,86 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
 #[cfg(test)]
 mod test {
-    // use super::*;
-    // use dossier_core::tree_sitter::Parser;
-    // use indoc::indoc;
-    // use std::path::Path;
+    use super::*;
+    use dossier_core::tree_sitter::Parser;
+    use dossier_core::tree_sitter::TreeCursor;
+    use indoc::indoc;
+    use std::path::Path;
 
-    // #[test]
-    // fn parses_predefined_type() {
-    //     let code = indoc! {r#"
-    //         type Foo = string;
-    //     #"#};
+    fn init_parser() -> Parser {
+        let mut parser = Parser::new();
+        parser
+            .set_language(tree_sitter_typescript::language_typescript())
+            .expect("Error loading TypeScript grammar");
 
-    //     let mut ctx = ParserContext::new(Path::new("index.ts"), code);
+        parser
+    }
 
-    //     let mut parser = Parser::new();
+    fn walk_tree_to_type(cursor: &mut TreeCursor) {
+        cursor.goto_first_child();
+        cursor.goto_first_child();
+        cursor.goto_next_sibling();
+        cursor.goto_next_sibling();
+        cursor.goto_next_sibling();
+    }
 
-    //     parser
-    //         .set_language(tree_sitter_typescript::language_typescript())
-    //         .expect("Error loading TypeScript grammar");
+    #[test]
+    fn parses_predefined_type() {
+        let code = indoc! {r#"
+            type Foo = string;
+        #"#};
 
-    //     let tree = parser.parse(ctx.code, None).unwrap();
-    //     // Walk to the correct type node
-    //     let mut cursor = tree.walk();
-    //     cursor.goto_first_child();
-    //     cursor.goto_first_child();
-    //     cursor.goto_next_sibling();
-    //     cursor.goto_next_sibling();
-    //     cursor.goto_next_sibling();
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
 
-    //     println!("{:?} | {}", cursor.node().kind(), cursor.node().to_sexp());
-    // }
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        match type_def {
+            Type::Predefined(type_name) => {
+                assert_eq!(type_name, "string");
+            }
+            _ => panic!("Expected a predefined type"),
+        }
+    }
+
+    #[test]
+    fn parses_type_identifiers() {
+        let code = indoc! {r#"
+            type Foo = Bar;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        match type_def {
+            Type::Identifier(type_name, referred_fqn) => {
+                assert_eq!(type_name, "Bar");
+                assert_eq!(
+                    referred_fqn, &None,
+                    "The type should not be resolved at this point"
+                );
+            }
+            _ => panic!("Expected a type identifier"),
+        }
+    }
 }

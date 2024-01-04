@@ -56,7 +56,11 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         cursor.goto_next_sibling();
     }
 
+    ctx.symbol_table.push_scope(identifier.as_str());
+
     let my_type = types::parse(&cursor.node(), ctx)?;
+
+    ctx.symbol_table.pop_scope();
 
     Ok(Symbol {
         fqn: ctx.construct_fqn(&identifier),
