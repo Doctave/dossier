@@ -56,7 +56,7 @@ impl Function {
     }
 }
 
-pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<(String, Symbol)> {
+pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     assert_eq!(node.kind(), NODE_KIND);
 
     let mut cursor = QueryCursor::new();
@@ -77,29 +77,26 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<(String, Sym
             }
             types::parse(&type_node_cursor.node(), ctx).unwrap()
         })
-        .map(|(_identifier, symbol)| Box::new(symbol));
+        .map(Box::new);
 
     let docs = find_docs(&main_node, ctx.code);
 
     let identifier = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
 
-    Ok((
-        identifier.clone(),
-        Symbol {
-            fqn: ctx.construct_fqn(&identifier),
-            kind: SymbolKind::Function(Function {
-                identifier,
-                documentation: docs.map(process_comment),
-                is_exported: is_exported(&main_node),
-                return_type,
-            }),
-            source: Source {
-                file: ctx.file.to_owned(),
-                offset_start_bytes: main_node.start_byte(),
-                offset_end_bytes: main_node.end_byte(),
-            },
+    Ok(Symbol {
+        fqn: ctx.construct_fqn(&identifier),
+        kind: SymbolKind::Function(Function {
+            identifier,
+            documentation: docs.map(process_comment),
+            is_exported: is_exported(&main_node),
+            return_type,
+        }),
+        source: Source {
+            file: ctx.file.to_owned(),
+            offset_start_bytes: main_node.start_byte(),
+            offset_end_bytes: main_node.end_byte(),
         },
-    ))
+    })
 }
 
 fn find_docs<'a>(node: &Node<'a>, code: &'a str) -> Option<&'a str> {

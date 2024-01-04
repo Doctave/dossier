@@ -23,6 +23,14 @@ impl Symbol {
             SymbolKind::Type(t) => t.as_entity(&self.source, &self.fqn),
         }
     }
+
+    pub fn identifier(&self) -> &str {
+        match &self.kind {
+            SymbolKind::Function(f) => f.identifier.as_str(),
+            SymbolKind::TypeAlias(a) => a.identifier.as_str(),
+            SymbolKind::Type(t) => t.identifier(),
+        }
+    }
 }
 
 /// The type of the symbol.

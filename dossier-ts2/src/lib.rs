@@ -109,12 +109,14 @@ fn handle_node(node: &Node, ctx: &mut ParserContext) -> Result<()> {
             ctx.symbol_table.add_import(import);
         }
         function::NODE_KIND => {
-            let (identifier, symbol) = function::parse(node, ctx)?;
-            ctx.symbol_table.add_symbol(&identifier, symbol);
+            let symbol = function::parse(node, ctx)?;
+            ctx.symbol_table
+                .add_symbol(symbol.identifier().to_owned().as_str(), symbol);
         }
         type_alias::NODE_KIND => {
-            let (identifier, symbol) = type_alias::parse(node, ctx)?;
-            ctx.symbol_table.add_symbol(&identifier, symbol);
+            let symbol = type_alias::parse(node, ctx)?;
+            ctx.symbol_table
+                .add_symbol(symbol.identifier().to_owned().as_str(), symbol);
         }
         _ => {
             println!("Unhandled node: {}", node.kind());
