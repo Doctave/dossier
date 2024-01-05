@@ -66,6 +66,41 @@ impl SymbolTable {
         })
     }
 
+    pub fn lookup_mut(
+        &mut self,
+        identifier: &str,
+        current_scope_id: ScopeID,
+    ) -> Option<&mut Symbol> {
+        let mut current_scope_id = current_scope_id;
+        let mut target_scope_id = None;
+        let mut target_symbol_index = None;
+
+        // First, identify the target scope and symbol index
+        while let Some(scope) = self.scopes.iter().find(|s| s.id == current_scope_id) {
+            if let Some(index) = scope.symbols.keys().position(|key| key == identifier) {
+                target_scope_id = Some(current_scope_id);
+                target_symbol_index = Some(index);
+                break;
+            }
+            if let Some(parent_id) = scope.parent {
+                current_scope_id = parent_id;
+            } else {
+                break;
+            }
+        }
+
+        // Then, mutate the symbol if it is found
+        if let (Some(found_scope_id), Some(symbol_index)) = (target_scope_id, target_symbol_index) {
+            return self
+                .scopes
+                .iter_mut()
+                .find(|s| s.id == found_scope_id)
+                .and_then(|scope| scope.symbols.values_mut().nth(symbol_index));
+        }
+
+        None
+    }
+
     pub fn lookup_import(&self, identifier: &str, scope_id: ScopeID) -> Option<&Import> {
         let scope = self.scopes.iter().find(|s| s.id == scope_id).unwrap();
 
@@ -94,6 +129,12 @@ impl SymbolTable {
         self.current_scope_mut()
             .symbols
             .insert(identifier.into(), symbol);
+    }
+
+    pub fn export_symbol(&mut self, identifier: &str) {
+        if let Some(symbol) =  self.lookup_mut(identifier, self.current_scope_id) {
+            symbol.mark_as_exported()
+        }
     }
 
     /// The wildest part of this crate by a long shot. Type resolution!

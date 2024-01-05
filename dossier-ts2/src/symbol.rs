@@ -24,6 +24,13 @@ impl Symbol {
         }
     }
 
+    pub fn mark_as_exported(&mut self) {
+        match &mut self.kind {
+            SymbolKind::TypeAlias(ref mut a) => a.exported = true,
+            _ => {},
+        }
+    }
+
     pub fn as_entity(&self) -> Entity {
         match &self.kind {
             SymbolKind::Function(f) => f.as_entity(&self.source, &self.fqn),
