@@ -38,7 +38,7 @@ fn main() {
         .map(|p| p.as_path())
         .collect::<Vec<_>>();
 
-    let parser = dossier_ts2::TypeScriptParser::new();
+    let parser = dossier_ts::TypeScriptParser::new();
 
     match parser.parse(typescript_files, &mut dossier_core::Context::new()) {
         Ok(mut entities) => {

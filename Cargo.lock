@@ -26,7 +26,6 @@ version = "0.1.0"
 dependencies = [
  "dossier-core",
  "dossier-ts",
- "dossier-ts2",
  "glob",
  "pretty-duration",
  "serde_json",
@@ -45,19 +44,6 @@ dependencies = [
 
 [[package]]
 name = "dossier-ts"
-version = "0.1.0"
-dependencies = [
- "cc",
- "dossier-core",
- "indoc",
- "lazy_static",
- "tree-sitter",
- "tree-sitter-jsdoc",
- "tree-sitter-typescript",
-]
-
-[[package]]
-name = "dossier-ts2"
 version = "0.1.0"
 dependencies = [
  "cc",

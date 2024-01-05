@@ -4,7 +4,6 @@ members = [
     "dossier",
     "dossier-core",
     "dossier-ts",
-    "dossier-ts2",
 ]
 
 [patch.crates-io]

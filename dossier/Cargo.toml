@@ -9,6 +9,5 @@ edition = "2021"
 serde_json = "1.0"
 dossier-core = { path = "../dossier-core" }
 dossier-ts = { path = "../dossier-ts" }
-dossier-ts2 = { path = "../dossier-ts2" }
 glob = "0.3.1"
 pretty-duration = "0.1.1"

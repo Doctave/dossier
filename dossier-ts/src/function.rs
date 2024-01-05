@@ -1,12 +1,15 @@
-use dossier_core::tree_sitter::{Node, Parser, Query, QueryCursor};
-use dossier_core::Identity;
-use dossier_core::{helpers::*, serde_json::json, Context, Entity, Result, Source};
+use dossier_core::serde_json::json;
+use dossier_core::tree_sitter::{Node, Query, QueryCursor};
+use dossier_core::{helpers::*, Entity, Result};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
-use std::path::Path;
-
-use crate::parameter;
+use crate::helpers::*;
+use crate::symbol::SymbolContext;
+use crate::{
+    symbol::{Source, Symbol, SymbolKind},
+    types, ParserContext,
+};
 
 const QUERY_STRING: &str = indoc! {"
     (function_declaration 
@@ -21,99 +24,93 @@ lazy_static! {
         Query::new(tree_sitter_typescript::language_typescript(), QUERY_STRING).unwrap();
 }
 
-pub(crate) fn parse(code: &str, path: &Path, ctx: &mut Context) -> Result<Vec<Entity>> {
-    let mut parser = Parser::new();
+pub(crate) const NODE_KIND: &str = "function_declaration";
 
-    parser
-        .set_language(tree_sitter_typescript::language_typescript())
-        .expect("Error loading TypeScript grammar");
-
-    let tree = parser.parse(code.clone(), None).unwrap();
-
-    parse_from_node(tree.root_node(), path, code, ctx)
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Function {
+    pub identifier: String,
+    pub documentation: Option<String>,
+    pub is_exported: bool,
+    pub children: Vec<Symbol>,
 }
 
-pub(crate) fn parse_from_node(
-    node: Node,
-    path: &Path,
-    code: &str,
-    ctx: &mut Context,
-) -> Result<Vec<Entity>> {
-    let mut cursor = QueryCursor::new();
-    let matches = cursor.matches(&QUERY, node, code.as_bytes());
-
-    Ok(matches
-        .into_iter()
-        .map(|m| {
-            let main_node = node_for_capture("function", m.captures, &QUERY).unwrap();
-            let name_node = node_for_capture("function_name", m.captures, &QUERY).unwrap();
-            let parameter_node = node_for_capture("function_parameters", m.captures, &QUERY);
-            let return_type = node_for_capture("function_return_type", m.captures, &QUERY);
-
-            let docs = find_docs(&main_node, code);
-
-            let meta = json!({});
-            let mut members = vec![];
-
-            if let Some(return_type) = return_type {
-                members.push(parse_return_type(&return_type, path, code, ctx));
-            }
-
-            if let Some(parameters) = parameter_node {
-                members.append(
-                    &mut parameter::parse_from_node(&parameters, path, code, &Context::new())
-                        .unwrap(),
-                );
-            }
-
-            Entity {
-                title: name_node.utf8_text(code.as_bytes()).unwrap().to_owned(),
-                description: docs.map(|s| s.to_owned()).unwrap_or("".to_string()),
-                kind: "function".to_string(),
-                identity: Identity::FQN("TODO".to_string()),
-                members,
-                member_context: None,
-                language: "ts".to_owned(),
-                meta,
-                source: Source {
-                    file: path.to_owned(),
-                    start_offset_bytes: main_node.start_byte(),
-                    end_offset_bytes: main_node.end_byte(),
-                    repository: None,
-                },
-            }
-        })
-        .collect::<Vec<_>>())
-}
-
-fn parse_return_type<'a>(
-    node: &Node<'a>,
-    path: &Path,
-    code: &'a str,
-    _ctx: &mut Context,
-) -> Entity {
-    let title = node
-        .utf8_text(code.as_bytes())
-        .unwrap()
-        .trim_start_matches(": ")
-        .to_owned();
-
-    Entity {
-        title,
-        description: "".to_string(),
-        kind: "type".to_string(),
-        identity: Identity::FQN("TODO".to_string()),
-        members: vec![],
-        member_context: Some("returnType".to_string()),
-        language: "ts".to_owned(),
-        meta: json!({}),
-        source: Source {
-            file: path.to_owned(),
-            start_offset_bytes: node.start_byte(),
-            end_offset_bytes: node.end_byte(),
-            repository: None,
-        },
+impl Function {
+    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+        Entity {
+            title: self.identifier.clone(),
+            description: self.documentation.clone().unwrap_or_default(),
+            kind: "function".to_owned(),
+            identity: dossier_core::Identity::FQN(fqn.to_owned()),
+            members: vec![],
+            member_context: None,
+            language: crate::LANGUAGE.to_owned(),
+            source: dossier_core::Source {
+                file: source.file.to_owned(),
+                start_offset_bytes: source.offset_start_bytes,
+                end_offset_bytes: source.offset_end_bytes,
+                repository: None,
+            },
+            meta: json!({}),
+        }
     }
+
+    #[cfg(test)]
+    pub fn return_type(&self) -> Option<&Symbol> {
+        self.children
+            .iter()
+            .find(|s| s.context == Some(crate::symbol::SymbolContext::ReturnType))
+    }
+}
+
+pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
+    assert_eq!(node.kind(), NODE_KIND);
+
+    let mut children = vec![];
+
+    let mut cursor = QueryCursor::new();
+    let function = cursor
+        .matches(&QUERY, *node, ctx.code.as_bytes())
+        .next()
+        .unwrap();
+
+    let main_node = node_for_capture("function", function.captures, &QUERY).unwrap();
+    let name_node = node_for_capture("function_name", function.captures, &QUERY).unwrap();
+
+    let identifier = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
+
+    ctx.push_scope(identifier.as_str());
+
+    // let parameter_node = node_for_capture("function_parameters", m.captures, &QUERY);
+    if let Some(type_node) = node_for_capture("function_return_type", function.captures, &QUERY) {
+        let mut type_node_cursor = type_node.walk();
+        type_node_cursor.goto_first_child();
+        while !type_node_cursor.node().is_named() {
+            type_node_cursor.goto_next_sibling();
+        }
+        ctx.push_context(SymbolContext::ReturnType);
+        children.push(types::parse(&type_node_cursor.node(), ctx).unwrap());
+        ctx.pop_context();
+    }
+
+    let docs = find_docs(&main_node, ctx.code);
+
+    ctx.pop_scope();
+
+    Ok(Symbol {
+        fqn: ctx.construct_fqn(&identifier),
+        kind: SymbolKind::Function(Function {
+            identifier,
+            documentation: docs.map(process_comment),
+            is_exported: is_exported(&main_node),
+            children,
+        }),
+        source: Source {
+            file: ctx.file.to_owned(),
+            offset_start_bytes: main_node.start_byte(),
+            offset_end_bytes: main_node.end_byte(),
+        },
+        context: ctx.symbol_context().cloned(),
+    })
 }
 
 fn find_docs<'a>(node: &Node<'a>, code: &'a str) -> Option<&'a str> {
@@ -134,57 +131,11 @@ fn find_docs<'a>(node: &Node<'a>, code: &'a str) -> Option<&'a str> {
     None
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use dossier_core::serde_json::Value;
-    use indoc::indoc;
-
-    #[test]
-    fn parses_function() {
-        let code = indoc! { r#"
-        /**
-         * This is the comment
-         */
-        function example(foo: string, bar?: number): boolean {
-            return true
+fn is_exported(node: &Node) -> bool {
+    if let Some(parent) = node.parent() {
+        if parent.kind() == "export_statement" {
+            return true;
         }
-        "#};
-
-        let result =
-            parse(code, Path::new("index.ts"), &mut Context::new()).expect("Failed to parse code");
-        assert_eq!(result.len(), 1);
-
-        let function = &result[0];
-        assert_eq!(function.title, "example");
-        assert_eq!(function.kind, "function");
-
-        let return_type = &function
-            .members
-            .iter()
-            .find(|m| m.member_context == Some("returnType".to_string()))
-            .unwrap();
-        assert_eq!(return_type.title, "boolean");
-        assert_eq!(return_type.kind, "type");
-
-        let parameters = &function
-            .members
-            .iter()
-            .filter(|m| m.member_context == Some("parameter".to_string()))
-            .collect::<Vec<_>>();
-        assert_eq!(parameters.len(), 2);
-
-        let foo = &parameters[0];
-        assert_eq!(foo.title, "foo");
-        assert_eq!(foo.kind, "parameter");
-        assert_eq!(foo.members[0].title, "string");
-        assert_eq!(foo.members[0].kind, "type");
-
-        let bar = &parameters[1];
-        assert_eq!(bar.title, "bar");
-        assert_eq!(bar.kind, "parameter");
-        assert_eq!(bar.meta["optional"], Value::Bool(true));
-        assert_eq!(bar.members[0].title, "number");
-        assert_eq!(bar.members[0].kind, "type");
     }
+    false
 }
