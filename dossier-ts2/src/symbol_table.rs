@@ -200,12 +200,14 @@ impl SymbolTable {
                     if let Some(matching_symbol) =
                         imported_table.lookup(&identifier, imported_table.root_scope().id)
                     {
-                        resolutions.push((
-                            scope_index,
-                            root_symbol_identifier,
-                            child_indexes,
-                            matching_symbol.fqn.clone(),
-                        ));
+                        if matching_symbol.is_exported() {
+                            resolutions.push((
+                                scope_index,
+                                root_symbol_identifier,
+                                child_indexes,
+                                matching_symbol.fqn.clone(),
+                            ));
+                        }
                     }
                 }
             }

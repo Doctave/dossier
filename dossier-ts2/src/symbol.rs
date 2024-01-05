@@ -17,6 +17,13 @@ pub(crate) struct Symbol {
 }
 
 impl Symbol {
+    pub fn is_exported(&self) -> bool {
+        match &self.kind {
+            SymbolKind::TypeAlias(a) => a.exported,
+            _ => false,
+        }
+    }
+
     pub fn as_entity(&self) -> Entity {
         match &self.kind {
             SymbolKind::Function(f) => f.as_entity(&self.source, &self.fqn),

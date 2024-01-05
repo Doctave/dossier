@@ -11,6 +11,7 @@ pub(crate) struct TypeAlias {
     /// Technically will ever only have one child, the type itself, but other
     /// parts of the program will expect a slice of children so this is simpler.
     pub children: Vec<Symbol>,
+    pub exported: bool,
 }
 
 impl TypeAlias {
@@ -74,6 +75,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         kind: SymbolKind::TypeAlias(TypeAlias {
             identifier,
             children: Vec::from([my_type]),
+            exported: is_exported(node),
         }),
         source: Source {
             file: ctx.file.to_owned(),
@@ -82,4 +84,10 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         },
         context: ctx.symbol_context().cloned(),
     })
+}
+
+fn is_exported(node: &Node) -> bool {
+    node.parent()
+        .map(|p| p.kind() == "export_statement")
+        .unwrap_or(false)
 }

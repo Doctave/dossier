@@ -428,4 +428,58 @@ mod test {
             _ => panic!("Expected an object type"),
         }
     }
+
+    #[test]
+    fn does_not_resolves_type_aliases_in_nested_symbols_across_files_if_the_referenced_type_is_not_exported(
+    ) {
+        let foo_file = indoc! { r#"
+        type Foo = string;
+        "#};
+
+        let index_file = indoc! { r#"
+        import { Foo } from "./foo.ts";
+
+        type Bar = {
+            foo: Foo;
+        }
+        "#};
+
+        let mut foo_table = parse_file(ParserContext::new(Path::new("foo.ts"), foo_file)).unwrap();
+        let mut index_table =
+            parse_file(ParserContext::new(Path::new("index.ts"), index_file)).unwrap();
+
+        foo_table.resolve_types();
+        index_table.resolve_types();
+
+        let all_tables = vec![&foo_table];
+
+        index_table.resolve_imported_types(all_tables);
+
+        let symbols = index_table.all_symbols().collect::<Vec<_>>();
+        assert_eq!(symbols.len(), 1);
+
+        match symbols[0]
+            .kind
+            .as_type_alias()
+            .unwrap()
+            .the_type()
+            .kind
+            .as_type()
+            .unwrap()
+        {
+            Type::Object { properties, .. } => {
+                let resolved_type = properties[0].kind.as_property().unwrap().children[0]
+                    .kind
+                    .as_type()
+                    .unwrap();
+
+                assert_eq!(
+                    resolved_type,
+                    &Type::Identifier("Foo".to_owned(), None),
+                    "The type should not be resolved because it is not exported"
+                );
+            }
+            _ => panic!("Expected an object type"),
+        }
+    }
 }
