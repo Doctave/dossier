@@ -29,6 +29,7 @@ pub(crate) struct Property {
     /// Technically will ever only have one child, the type itself, but other
     /// parts of the program will expect a slice of children so this is simpler.
     pub children: Vec<Symbol>,
+    pub is_optional: bool,
 }
 
 impl Property {
@@ -55,6 +56,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
     ctx.push_scope(identifier.as_str());
 
+
     let my_type = crate::types::parse(&type_node, ctx)?;
 
     ctx.pop_scope();
@@ -64,6 +66,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         kind: SymbolKind::Property(Property {
             identifier,
             children: Vec::from([my_type]),
+            is_optional: is_optional(node),
         }),
         source: Source {
             file: ctx.file.to_owned(),
@@ -72,4 +75,12 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         },
         context: ctx.symbol_context().cloned(),
     })
+}
+
+fn is_optional(node: &Node) -> bool {
+    let mut cursor = node.walk();
+    cursor.goto_first_child();
+    cursor.goto_next_sibling();
+
+    cursor.node().kind() == "?"
 }

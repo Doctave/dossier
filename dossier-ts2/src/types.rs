@@ -257,6 +257,7 @@ mod test {
                 assert_eq!(properties.len(), 2);
 
                 assert_eq!(properties[0].kind.as_property().unwrap().identifier, "name");
+                assert!(!properties[0].kind.as_property().unwrap().is_optional);
                 assert_eq!(
                     properties[0].kind.as_property().unwrap().children[0]
                         .kind
@@ -265,6 +266,7 @@ mod test {
                     &Type::Predefined("string".to_string())
                 );
                 assert_eq!(properties[1].kind.as_property().unwrap().identifier, "age");
+                assert!(properties[1].kind.as_property().unwrap().is_optional);
                 assert_eq!(
                     properties[1].kind.as_property().unwrap().children[0]
                         .kind
