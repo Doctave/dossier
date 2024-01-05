@@ -2,8 +2,6 @@ use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicUsize;
 
-use dossier_core::indexmap::IndexMap;
-
 use crate::import::Import;
 use crate::symbol::Symbol;
 
@@ -17,7 +15,6 @@ pub(crate) struct Scope {
     pub identifier: Option<String>,
     pub id: ScopeID,
     pub parent: Option<ScopeID>,
-    pub symbols: IndexMap<String, Symbol>,
     pub imports: Vec<Import>,
 }
 
@@ -33,6 +30,7 @@ pub(crate) struct Scope {
 pub(crate) struct SymbolTable {
     pub file: PathBuf,
     scopes: Vec<Scope>,
+    symbols: Vec<Symbol>,
     current_scope_id: ScopeID,
 }
 
@@ -44,61 +42,50 @@ impl SymbolTable {
         Self {
             file: path.into(),
             current_scope_id: root_id,
+            symbols: vec![],
             scopes: vec![Scope {
                 identifier: None,
                 id: root_id,
                 parent: None,
-                symbols: IndexMap::new(),
                 imports: vec![],
             }],
         }
     }
 
     pub fn lookup(&self, identifier: &str, scope_id: ScopeID) -> Option<&Symbol> {
-        let scope = self.scopes.iter().find(|s| s.id == scope_id).unwrap();
+        let mut parent_scopes = vec![];
+        let mut scope_id = Some(scope_id);
 
-        scope.symbols.get(identifier).or_else(|| {
-            if let Some(parent_id) = scope.parent {
-                self.lookup(identifier, parent_id)
-            } else {
-                None
-            }
+        while let Some(id) = scope_id {
+            parent_scopes.push(id);
+            scope_id = self
+                .scopes
+                .iter()
+                .find(|s| s.id == id)
+                .and_then(|s| s.parent);
+        }
+
+        self.symbols.iter().find(|sym| {
+            parent_scopes.contains(&sym.scope_id) && sym.kind.identifier() == identifier
         })
     }
 
-    pub fn lookup_mut(
-        &mut self,
-        identifier: &str,
-        current_scope_id: ScopeID,
-    ) -> Option<&mut Symbol> {
-        let mut current_scope_id = current_scope_id;
-        let mut target_scope_id = None;
-        let mut target_symbol_index = None;
+    pub fn lookup_mut(&mut self, identifier: &str, scope_id: ScopeID) -> Option<&mut Symbol> {
+        let mut parent_scopes = vec![];
+        let mut scope_id = Some(scope_id);
 
-        // First, identify the target scope and symbol index
-        while let Some(scope) = self.scopes.iter().find(|s| s.id == current_scope_id) {
-            if let Some(index) = scope.symbols.keys().position(|key| key == identifier) {
-                target_scope_id = Some(current_scope_id);
-                target_symbol_index = Some(index);
-                break;
-            }
-            if let Some(parent_id) = scope.parent {
-                current_scope_id = parent_id;
-            } else {
-                break;
-            }
-        }
-
-        // Then, mutate the symbol if it is found
-        if let (Some(found_scope_id), Some(symbol_index)) = (target_scope_id, target_symbol_index) {
-            return self
+        while let Some(id) = scope_id {
+            parent_scopes.push(id);
+            scope_id = self
                 .scopes
-                .iter_mut()
-                .find(|s| s.id == found_scope_id)
-                .and_then(|scope| scope.symbols.values_mut().nth(symbol_index));
+                .iter()
+                .find(|s| s.id == id)
+                .and_then(|s| s.parent);
         }
 
-        None
+        self.symbols.iter_mut().find(|sym| {
+            parent_scopes.contains(&sym.scope_id) && sym.kind.identifier() == identifier
+        })
     }
 
     pub fn lookup_import(&self, identifier: &str, scope_id: ScopeID) -> Option<&Import> {
@@ -118,7 +105,7 @@ impl SymbolTable {
     }
 
     pub fn all_symbols(&self) -> impl Iterator<Item = &Symbol> {
-        self.scopes.iter().flat_map(|s| s.symbols.values())
+        self.symbols.iter()
     }
 
     pub fn all_imports(&self) -> impl Iterator<Item = &Import> {
@@ -126,13 +113,11 @@ impl SymbolTable {
     }
 
     pub fn add_symbol(&mut self, identifier: &str, symbol: Symbol) {
-        self.current_scope_mut()
-            .symbols
-            .insert(identifier.into(), symbol);
+        self.symbols.push(symbol);
     }
 
     pub fn export_symbol(&mut self, identifier: &str) {
-        if let Some(symbol) =  self.lookup_mut(identifier, self.current_scope_id) {
+        if let Some(symbol) = self.lookup_mut(identifier, self.current_scope_id) {
             symbol.mark_as_exported()
         }
     }
@@ -142,53 +127,31 @@ impl SymbolTable {
         // First pass: collect the actions we need to apply to avoid mutable-immutable borrow conflict
         //
         // We collect a set of actions where the elements are:
-        // - The scope index
-        // - The root symbol identifier
         // - The chain of indexes to the child symbols which needs resolving
         // - The identifier in the symbol that needs resolving
-        let mut actions: Vec<(usize, String, VecDeque<usize>, String)> = vec![];
+        // - The scope of the symbol that needs resolving
+        let mut actions: Vec<(VecDeque<usize>, String, ScopeID)> = vec![];
 
-        for (scope_index, scope) in self.scopes.iter().enumerate() {
-            let index_chain = VecDeque::new();
-
-            for (root_symbol_identifier, symbol) in scope.symbols.iter() {
-                let mut chain = index_chain.clone();
-                // Collect a list of IDs to symbols which need resolving
-                Self::collect_actions_recursive(
-                    symbol,
-                    scope_index,
-                    root_symbol_identifier,
-                    &mut chain,
-                    &mut actions,
-                );
-            }
+        for (id, symbol) in self.symbols.iter().enumerate() {
+            let mut chain = VecDeque::from([id]);
+            // Collect a list of IDs to symbols which need resolving
+            Self::collect_actions_recursive(symbol, &mut chain, &mut actions);
         }
 
-        let mut resolutions: Vec<(usize, String, VecDeque<usize>, String)> = vec![];
+        let mut resolutions: Vec<(VecDeque<usize>, String)> = vec![];
         // Second pass: perform the lookups and collect the results
         //
         // Look up the identifier from its scope. If we find a match, we add it to the resolutions,
         // which is an identical list as above, except the last element is the resolved FQN of the symbol
-        for (scope_index, root_symbol_identifier, child_indexes, identifier) in actions {
-            let scope_id = self.scopes[scope_index].id;
-
+        for (child_indexes, identifier, scope_id) in actions {
             if let Some(matching_symbol) = self.lookup(&identifier, scope_id) {
-                resolutions.push((
-                    scope_index,
-                    root_symbol_identifier,
-                    child_indexes,
-                    matching_symbol.fqn.clone(),
-                ));
+                resolutions.push((child_indexes, matching_symbol.fqn.clone()));
             }
         }
 
         // Third pass: apply the resolutions back to the symbols
-        for (scope_index, root_symbol_identifier, indexes, fqn) in resolutions {
-            if let Some(symbol) = self
-                .scopes
-                .get_mut(scope_index)
-                .and_then(|s| s.symbols.get_mut(root_symbol_identifier.as_str()))
-            {
+        for (mut indexes, fqn) in resolutions.into_iter() {
+            if let Some(symbol) = self.symbols.get_mut(indexes.pop_front().unwrap()) {
                 let symbol = Self::resolve_symbol_mut(symbol, indexes); // Use slicing to pass the rest of the indexes
                 symbol.resolve_type(&fqn);
             }
@@ -203,37 +166,24 @@ impl SymbolTable {
         // First pass: collect the actions we need to apply to avoid mutable-immutable borrow conflict
         //
         // We collect a set of actions where the elements are:
-        // - The scope index
-        // - The root symbol identifier
         // - The chain of indexes to the child symbols which needs resolving
         // - The identifier in the symbol that needs resolving
-        let mut actions: Vec<(usize, String, VecDeque<usize>, String)> = vec![];
+        // - The scope of the symbol that needs resolving
+        let mut actions: Vec<(VecDeque<usize>, String, ScopeID)> = vec![];
 
-        for (scope_index, scope) in self.scopes.iter().enumerate() {
-            let index_chain = VecDeque::new();
-
-            for (root_symbol_identifier, symbol) in scope.symbols.iter() {
-                let mut chain = index_chain.clone();
-                // Collect a list of IDs to symbols which need resolving
-                Self::collect_actions_recursive(
-                    symbol,
-                    scope_index,
-                    root_symbol_identifier,
-                    &mut chain,
-                    &mut actions,
-                );
-            }
+        for (id, symbol) in self.symbols.iter().enumerate() {
+            let mut chain = VecDeque::from([id]);
+            // Collect a list of IDs to symbols which need resolving
+            Self::collect_actions_recursive(symbol, &mut chain, &mut actions);
         }
 
-        let mut resolutions: Vec<(usize, String, VecDeque<usize>, String)> = vec![];
         let mut all_tables = all_tables.into_iter();
+        let mut resolutions: Vec<(VecDeque<usize>, String)> = vec![];
         // Second pass: perform the lookups and collect the results
         //
         // Look up the identifier from its scope. If we find a match, we add it to the resolutions,
         // which is an identical list as above, except the last element is the resolved FQN of the symbol
-        for (scope_index, root_symbol_identifier, child_indexes, identifier) in actions {
-            let scope_id = self.scopes[scope_index].id;
-
+        for (child_indexes, identifier, scope_id) in actions {
             if let Some(import) = self.lookup_import(&identifier, scope_id) {
                 if let Some(imported_table) =
                     all_tables.find(|t| self.matches_import_path(&t.file, import))
@@ -242,12 +192,7 @@ impl SymbolTable {
                         imported_table.lookup(&identifier, imported_table.root_scope().id)
                     {
                         if matching_symbol.is_exported() {
-                            resolutions.push((
-                                scope_index,
-                                root_symbol_identifier,
-                                child_indexes,
-                                matching_symbol.fqn.clone(),
-                            ));
+                            resolutions.push((child_indexes, matching_symbol.fqn.clone()));
                         }
                     }
                 }
@@ -255,12 +200,8 @@ impl SymbolTable {
         }
 
         // Third pass: apply the resolutions back to the symbols
-        for (scope_index, root_symbol_identifier, indexes, fqn) in resolutions {
-            if let Some(symbol) = self
-                .scopes
-                .get_mut(scope_index)
-                .and_then(|s| s.symbols.get_mut(root_symbol_identifier.as_str()))
-            {
+        for (mut indexes, fqn) in resolutions.into_iter() {
+            if let Some(symbol) = self.symbols.get_mut(indexes.pop_front().unwrap()) {
                 let symbol = Self::resolve_symbol_mut(symbol, indexes); // Use slicing to pass the rest of the indexes
                 symbol.resolve_type(&fqn);
             }
@@ -271,31 +212,21 @@ impl SymbolTable {
     /// during type resolution.
     fn collect_actions_recursive(
         symbol: &Symbol,
-        scope_index: usize,
-        root_symbol_identifier: &str,
         chain: &mut VecDeque<usize>,
-        actions: &mut Vec<(usize, String, VecDeque<usize>, String)>,
+        actions: &mut Vec<(VecDeque<usize>, String, ScopeID)>,
     ) {
         if let Some(resolvable_identifier) = symbol.resolvable_identifier() {
             actions.push((
-                scope_index,
-                root_symbol_identifier.to_owned(),
                 chain.clone(),
                 resolvable_identifier.to_owned(),
+                symbol.scope_id,
             ));
         }
 
         for (child_index, child) in symbol.children().iter().enumerate() {
-            let mut chain = chain.clone();
             chain.push_back(child_index);
 
-            Self::collect_actions_recursive(
-                child,
-                scope_index,
-                root_symbol_identifier,
-                &mut chain,
-                actions,
-            );
+            Self::collect_actions_recursive(child, chain, actions);
         }
     }
 
@@ -388,7 +319,6 @@ impl SymbolTable {
             id,
             identifier: Some(name.into()),
             parent: Some(self.current_scope_id),
-            symbols: IndexMap::new(),
             imports: vec![],
         });
 
@@ -446,7 +376,6 @@ mod test {
                     documentation: None,
                     is_exported: false,
                     children: vec![],
-                    
                 }),
                 source: Source {
                     file: PathBuf::from("foo.ts"),
@@ -455,7 +384,7 @@ mod test {
                 },
                 fqn: "foo.ts::foo".to_owned(),
                 context: None,
-                scope_id: table.current_scope().id
+                scope_id: table.current_scope().id,
             },
         );
 
@@ -494,7 +423,7 @@ mod test {
                 },
                 fqn: "foo.ts::foo".to_owned(),
                 context: None,
-                scope_id: table.current_scope().id
+                scope_id: table.current_scope().id,
             },
         );
 
@@ -523,7 +452,7 @@ mod test {
                 },
                 fqn: "foo.ts::foo".to_owned(),
                 context: None,
-                scope_id: table.current_scope().id
+                scope_id: table.current_scope().id,
             },
         );
 
