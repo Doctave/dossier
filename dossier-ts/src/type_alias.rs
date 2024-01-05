@@ -70,20 +70,19 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
     ctx.pop_scope();
 
-    Ok(Symbol {
-        fqn: ctx.construct_fqn(&identifier),
-        kind: SymbolKind::TypeAlias(TypeAlias {
+    Ok(Symbol::in_context(
+        ctx,
+        SymbolKind::TypeAlias(TypeAlias {
             identifier,
             children: Vec::from([my_type]),
             exported: is_exported(node),
         }),
-        source: Source {
+        Source {
             file: ctx.file.to_owned(),
             offset_start_bytes: node.start_byte(),
             offset_end_bytes: node.end_byte(),
         },
-        context: ctx.symbol_context().cloned(),
-    })
+    ))
 }
 
 fn is_exported(node: &Node) -> bool {

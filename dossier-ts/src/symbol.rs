@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
 use dossier_core::Entity;
+use tree_sitter::Node;
+
+use crate::{symbol_table::ScopeID, ParserContext};
 
 #[derive(Debug, Clone, PartialEq)]
 /// A symbol we've discovered in the source code.
@@ -14,9 +17,24 @@ pub(crate) struct Symbol {
     /// E.g. a function would have a return type symbol,
     /// where this field would be set to SymbolContext::ReturnType
     pub context: Option<SymbolContext>,
+    pub scope_id: ScopeID,
 }
 
 impl Symbol {
+    pub fn in_context(ctx: &ParserContext, kind: SymbolKind, source: Source) -> Self {
+        let fqn = ctx.construct_fqn(kind.identifier());
+        let scope_id = ctx.current_scope();
+        let context = ctx.symbol_context().cloned();
+
+        Self {
+            kind,
+            source,
+            fqn,
+            context,
+            scope_id,
+        }
+    }
+
     pub fn is_exported(&self) -> bool {
         match &self.kind {
             SymbolKind::TypeAlias(a) => a.exported,
@@ -27,7 +45,7 @@ impl Symbol {
     pub fn mark_as_exported(&mut self) {
         match &mut self.kind {
             SymbolKind::TypeAlias(ref mut a) => a.exported = true,
-            _ => {},
+            _ => {}
         }
     }
 
@@ -41,12 +59,7 @@ impl Symbol {
     }
 
     pub fn identifier(&self) -> &str {
-        match &self.kind {
-            SymbolKind::Function(f) => f.identifier.as_str(),
-            SymbolKind::TypeAlias(a) => a.identifier.as_str(),
-            SymbolKind::Type(t) => t.identifier(),
-            SymbolKind::Property(p) => p.identifier.as_str(),
-        }
+        self.kind.identifier()
     }
 
     pub fn children(&self) -> &[Symbol] {
@@ -98,6 +111,15 @@ pub(crate) enum SymbolKind {
 }
 
 impl SymbolKind {
+    pub fn identifier(&self) -> &str {
+        match &self {
+            SymbolKind::Function(f) => f.identifier.as_str(),
+            SymbolKind::TypeAlias(a) => a.identifier.as_str(),
+            SymbolKind::Type(t) => t.identifier(),
+            SymbolKind::Property(p) => p.identifier.as_str(),
+        }
+    }
+
     #[cfg(test)]
     pub fn as_function(&self) -> Option<&crate::function::Function> {
         match self {
@@ -137,4 +159,17 @@ pub(crate) struct Source {
     pub file: PathBuf,
     pub offset_start_bytes: usize,
     pub offset_end_bytes: usize,
+}
+
+impl Source {
+    pub fn for_node(node: &Node, ctx: &ParserContext) -> Self {
+        let offset_start_bytes = node.start_byte();
+        let offset_end_bytes = node.end_byte();
+
+        Self {
+            file: ctx.file.to_owned(),
+            offset_start_bytes,
+            offset_end_bytes,
+        }
+    }
 }

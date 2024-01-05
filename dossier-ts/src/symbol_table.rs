@@ -446,6 +446,7 @@ mod test {
                     documentation: None,
                     is_exported: false,
                     children: vec![],
+                    
                 }),
                 source: Source {
                     file: PathBuf::from("foo.ts"),
@@ -454,6 +455,7 @@ mod test {
                 },
                 fqn: "foo.ts::foo".to_owned(),
                 context: None,
+                scope_id: table.current_scope().id
             },
         );
 
@@ -492,6 +494,7 @@ mod test {
                 },
                 fqn: "foo.ts::foo".to_owned(),
                 context: None,
+                scope_id: table.current_scope().id
             },
         );
 
@@ -520,6 +523,7 @@ mod test {
                 },
                 fqn: "foo.ts::foo".to_owned(),
                 context: None,
+                scope_id: table.current_scope().id
             },
         );
 

@@ -56,25 +56,23 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
     ctx.push_scope(identifier.as_str());
 
-
     let my_type = crate::types::parse(&type_node, ctx)?;
 
     ctx.pop_scope();
 
-    Ok(Symbol {
-        fqn: ctx.construct_fqn(&identifier),
-        kind: SymbolKind::Property(Property {
+    Ok(Symbol::in_context(
+        ctx,
+        SymbolKind::Property(Property {
             identifier,
             children: Vec::from([my_type]),
             is_optional: is_optional(node),
         }),
-        source: Source {
+        Source {
             file: ctx.file.to_owned(),
             offset_start_bytes: node.start_byte(),
             offset_end_bytes: node.end_byte(),
         },
-        context: ctx.symbol_context().cloned(),
-    })
+    ))
 }
 
 fn is_optional(node: &Node) -> bool {

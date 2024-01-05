@@ -182,6 +182,10 @@ impl<'a> ParserContext<'a> {
     pub fn symbol_context(&self) -> Option<&SymbolContext> {
         self.symbol_context.last()
     }
+
+    pub fn current_scope(&self) -> ScopeID {
+        self.symbol_table.current_scope().id
+    }
 }
 
 #[cfg(test)]
@@ -289,11 +293,16 @@ mod test {
         "#};
 
         let mut table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
+        let symbols = table.all_symbols().collect::<Vec<_>>();
+
+        println!("{:#?}", symbols);
 
         table.resolve_types();
 
         let symbols = table.all_symbols().collect::<Vec<_>>();
         assert_eq!(symbols.len(), 2);
+
+        println!("{:#?}", symbols);
 
         let function = symbols[1].kind.as_function().unwrap();
 

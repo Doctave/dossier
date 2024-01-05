@@ -75,29 +75,19 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
         "predefined_type" => {
             let type_name = node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
-            Ok(Symbol {
-                fqn: ctx.construct_fqn(&type_name),
-                kind: SymbolKind::Type(Type::Predefined(type_name)),
-                source: Source {
-                    file: ctx.file.to_owned(),
-                    offset_start_bytes: node.start_byte(),
-                    offset_end_bytes: node.end_byte(),
-                },
-                context: ctx.symbol_context().cloned(),
-            })
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Predefined(type_name)),
+                Source::for_node(node, ctx),
+            ))
         }
         "type_identifier" => {
             let type_name = node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
-            Ok(Symbol {
-                fqn: ctx.construct_fqn(&type_name),
-                kind: SymbolKind::Type(Type::Identifier(type_name, None)),
-                source: Source {
-                    file: ctx.file.to_owned(),
-                    offset_start_bytes: node.start_byte(),
-                    offset_end_bytes: node.end_byte(),
-                },
-                context: ctx.symbol_context().cloned(),
-            })
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Identifier(type_name, None)),
+                Source::for_node(node, ctx),
+            ))
         }
         "object_type" => {
             let type_as_string = node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
@@ -121,19 +111,14 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
             ctx.pop_scope();
 
-            Ok(Symbol {
-                fqn: ctx.construct_fqn("obj"),
-                kind: SymbolKind::Type(Type::Object {
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Object {
                     raw_string: type_as_string,
                     properties,
                 }),
-                source: Source {
-                    file: ctx.file.to_owned(),
-                    offset_start_bytes: node.start_byte(),
-                    offset_end_bytes: node.end_byte(),
-                },
-                context: ctx.symbol_context().cloned(),
-            })
+                Source::for_node(node, ctx),
+            ))
         }
         _ => panic!(
             "Unhandled type kind: {} | {} | {}",

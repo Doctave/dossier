@@ -96,21 +96,16 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
     ctx.pop_scope();
 
-    Ok(Symbol {
-        fqn: ctx.construct_fqn(&identifier),
-        kind: SymbolKind::Function(Function {
+    Ok(Symbol::in_context(
+        ctx,
+        SymbolKind::Function(Function {
             identifier,
             documentation: docs.map(process_comment),
             is_exported: is_exported(&main_node),
             children,
         }),
-        source: Source {
-            file: ctx.file.to_owned(),
-            offset_start_bytes: main_node.start_byte(),
-            offset_end_bytes: main_node.end_byte(),
-        },
-        context: ctx.symbol_context().cloned(),
-    })
+        Source::for_node(&main_node, ctx),
+    ))
 }
 
 fn find_docs<'a>(node: &Node<'a>, code: &'a str) -> Option<&'a str> {
