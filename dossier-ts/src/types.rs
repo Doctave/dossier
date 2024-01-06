@@ -141,7 +141,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
                 }),
                 Source::for_node(node, ctx),
             ))
-        },
+        }
         "union_type" => {
             let mut cursor = node.walk();
             cursor.goto_first_child();

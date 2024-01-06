@@ -1,8 +1,7 @@
 use crate::{
     helpers::*,
     symbol::{Source, Symbol, SymbolKind},
-    type_variable,
-    types, ParserContext,
+    type_variable, types, ParserContext,
 };
 use dossier_core::{tree_sitter::Node, Entity, Result};
 

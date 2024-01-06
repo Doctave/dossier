@@ -18,7 +18,7 @@ pub(crate) fn parse_exports(node: &Node, ctx: &mut ParserContext) -> Result<Vec<
 
             while !specifier_cursor.node().is_named() {
                 if !specifier_cursor.goto_next_sibling() {
-                    break
+                    break;
                 }
             }
 

@@ -131,7 +131,11 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     ))
 }
 
-fn parse_return_type(node: &Node, children: &mut Vec<Symbol>, ctx: &mut ParserContext) -> Result<()> {
+fn parse_return_type(
+    node: &Node,
+    children: &mut Vec<Symbol>,
+    ctx: &mut ParserContext,
+) -> Result<()> {
     let mut type_node_cursor = node.walk();
     type_node_cursor.goto_first_child();
     while !type_node_cursor.node().is_named() {

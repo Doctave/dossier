@@ -70,7 +70,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         SymbolKind::Property(Property {
             identifier,
             children: Vec::from([my_type]),
-            is_optional: is_optional(node)
+            is_optional: is_optional(node),
         }),
         Source {
             file: ctx.file.to_owned(),
