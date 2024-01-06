@@ -54,7 +54,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
     let identifier = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
 
-    ctx.push_scope(identifier.as_str());
+    ctx.push_scope();
 
     let my_type = crate::types::parse(&type_node, ctx)?;
 

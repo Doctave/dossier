@@ -163,8 +163,16 @@ impl<'a> ParserContext<'a> {
         self.symbol_table.construct_fqn(identifier)
     }
 
-    pub fn push_scope(&mut self, name: &str) -> ScopeID {
-        self.symbol_table.push_scope(name)
+    pub fn push_fqn(&mut self, part: &str) {
+        self.symbol_table.push_fqn(part)
+    }
+
+    pub fn pop_fqn(&mut self) -> Option<String> {
+        self.symbol_table.pop_fqn()
+    }
+
+    pub fn push_scope(&mut self) -> ScopeID {
+        self.symbol_table.push_scope()
     }
 
     pub fn pop_scope(&mut self) {

@@ -12,7 +12,6 @@ pub(crate) type ScopeID = usize;
 /// The symbol table for a single file.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Scope {
-    pub identifier: Option<String>,
     pub id: ScopeID,
     pub parent: Option<ScopeID>,
     pub imports: Vec<Import>,
@@ -29,6 +28,7 @@ pub(crate) struct Scope {
 /// scope ID of the scope they're looking in.
 pub(crate) struct SymbolTable {
     pub file: PathBuf,
+    fqn_parts: Vec<String>,
     scopes: Vec<Scope>,
     symbols: Vec<Symbol>,
     current_scope_id: ScopeID,
@@ -38,13 +38,14 @@ pub(crate) struct SymbolTable {
 impl SymbolTable {
     pub fn new<P: Into<PathBuf>>(path: P) -> Self {
         let root_id = SCOPE_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let path = path.into();
 
         Self {
-            file: path.into(),
+            fqn_parts: vec![format!("{}", path.display())],
+            file: path,
             current_scope_id: root_id,
             symbols: vec![],
             scopes: vec![Scope {
-                identifier: None,
                 id: root_id,
                 parent: None,
                 imports: vec![],
@@ -287,28 +288,19 @@ impl SymbolTable {
 
     /// Constructs a fully qualified name for the given identifier in the current scope.
     pub fn construct_fqn(&self, identifier: &str) -> String {
-        let mut out = format!("{}", self.file.display());
+        let mut parts = self.fqn_parts.clone();
 
-        let mut scope = self.current_scope();
-        let mut parts = vec![];
+        parts.push(identifier.to_owned());
 
-        while scope.parent.is_some() {
-            if let Some(ident) = &self.current_scope().identifier {
-                parts.push(ident.as_str());
-            }
+        parts.join("::")
+    }
 
-            scope = self
-                .scopes
-                .iter()
-                .find(|s| s.id == scope.parent.unwrap())
-                .unwrap();
-        }
+    pub fn push_fqn(&mut self, part: &str) {
+        self.fqn_parts.push(part.to_owned());
+    }
 
-        parts.push(identifier);
-
-        out.push_str(&format!("::{}", parts.join("::")));
-
-        out
+    pub fn pop_fqn(&mut self) -> Option<String> {
+        self.fqn_parts.pop()
     }
 
     pub fn add_import(&mut self, import: Import) {
@@ -316,12 +308,11 @@ impl SymbolTable {
     }
 
     /// Create a new scope with the given name.
-    pub fn push_scope(&mut self, name: &str) -> ScopeID {
+    pub fn push_scope(&mut self) -> ScopeID {
         let id = SCOPE_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
         self.scopes.push(Scope {
             id,
-            identifier: Some(name.into()),
             parent: Some(self.current_scope_id),
             imports: vec![],
         });
@@ -406,7 +397,7 @@ mod test {
     fn symbol_table_lookup_fails_if_no_match_in_a_parent_scope() {
         let mut table = SymbolTable::new("foo.ts");
 
-        table.push_scope("bar");
+        table.push_scope();
 
         table.add_symbol(Symbol {
             kind: SymbolKind::Function(crate::function::Function {
@@ -451,9 +442,9 @@ mod test {
             scope_id: table.current_scope().id,
         });
 
-        table.push_scope("foo");
-        table.push_scope("bar");
-        let nested_scope_id = table.push_scope("baz");
+        table.push_scope();
+        table.push_scope();
+        let nested_scope_id = table.push_scope();
 
         assert!(table.lookup("foo", nested_scope_id).is_some());
     }
@@ -464,7 +455,7 @@ mod test {
 
         assert_eq!(table.construct_fqn("foo"), "foo.ts::foo");
 
-        let _nested_scope = table.push_scope("Fizz");
+        table.push_fqn("Fizz");
 
         assert_eq!(table.construct_fqn("foo"), "foo.ts::Fizz::foo");
     }

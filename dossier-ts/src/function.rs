@@ -82,10 +82,17 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
     let main_node = node_for_capture("function", function.captures, &QUERY).unwrap();
     let name_node = node_for_capture("function_name", function.captures, &QUERY).unwrap();
+    let type_param_node = node_for_capture("function_type_parameters", function.captures, &QUERY);
 
     let identifier = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
 
-    ctx.push_scope(identifier.as_str());
+    ctx.push_scope();
+    ctx.push_fqn(&identifier);
+
+    if let Some(type_parameters) = type_param_node {
+        parse_type_parameters(&type_parameters, &mut children, ctx);
+        ctx.push_scope();
+    }
 
     // let parameter_node = node_for_capture("function_parameters", m.captures, &QUERY);
     if let Some(type_node) = node_for_capture("function_return_type", function.captures, &QUERY) {
@@ -99,15 +106,13 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         ctx.pop_context();
     }
 
-    if let Some(type_parameters) =
-        node_for_capture("function_type_parameters", function.captures, &QUERY)
-    {
-        parse_type_parameters(&type_parameters, &mut children, ctx);
-    }
-
     let docs = find_docs(&main_node, ctx.code);
 
+    if type_param_node.is_some() {
+        ctx.pop_scope();
+    }
     ctx.pop_scope();
+    ctx.pop_fqn();
 
     Ok(Symbol::in_context(
         ctx,
@@ -195,6 +200,28 @@ mod test {
     }
 
     #[test]
+    fn fqns() {
+        let code = indoc! {r#"
+        function foo<Bar extends Baz>() {}
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_function(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+        
+        assert_eq!(symbol.fqn, "index.ts::foo");
+
+        let type_variable = symbol.kind.as_function().unwrap().type_variables().next().unwrap();
+        assert_eq!(type_variable.fqn, "index.ts::foo::Bar");
+    }
+
+    #[test]
     fn generics() {
         let code = indoc! {r#"
         function identity<Type>(arg: Type): Type {}
@@ -248,17 +275,19 @@ mod test {
         .unwrap();
 
         let function = symbol.kind.as_function().unwrap();
-
         assert_eq!(function.identifier, "identity");
+
+        // check the type variable
         assert_eq!(function.type_variables().count(), 1);
 
         let type_variable = function.type_variables().collect::<Vec<_>>()[0];
-        assert!(type_variable.scope_id > symbol.scope_id);
+        assert!(symbol.scope_id < type_variable.scope_id);
 
         let type_variable_kind = type_variable.kind.as_type_variable().unwrap();
         assert_eq!(type_variable_kind.identifier, "Type");
         assert_eq!(type_variable_kind.constraints().count(), 1);
 
+        // check the type variable's constraint
         let constraint = type_variable_kind.constraints().next().unwrap();
 
         let constraint_kind = constraint.kind.as_type_constraint().unwrap();
@@ -272,6 +301,15 @@ mod test {
                 .unwrap()
                 .identifier(),
             "SomeOtherType"
+        );
+
+        // Verify that the return type has a scope that is larger than the type variable's scope
+        let return_type = function.return_type().unwrap();
+        assert!(
+            type_variable.scope_id < return_type.scope_id,
+            "Expected type variable scope to be smaller than return type scope: {:?} < {:?}",
+            type_variable.scope_id,
+            return_type.scope_id
         );
     }
 }
