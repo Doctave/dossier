@@ -229,9 +229,10 @@ impl SymbolTable {
         }
 
         for (child_index, child) in symbol.children().iter().enumerate() {
-            chain.push_back(child_index);
+            let mut copy = chain.clone();
+            copy.push_back(child_index);
 
-            Self::collect_actions_recursive(child, chain, actions);
+            Self::collect_actions_recursive(child, &mut copy, actions);
         }
     }
 

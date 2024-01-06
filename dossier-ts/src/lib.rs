@@ -557,4 +557,34 @@ mod test {
             _ => panic!("Expected an object type"),
         }
     }
+
+    #[test]
+    fn resolves_type_aliases_to_nearest_symbol() {
+        let source = indoc! { r#"
+        type Foo = string;
+
+        function identity<Foo>(arg: Foo): Foo {
+            return arg;
+        }
+        "#};
+
+        let mut table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
+
+        table.resolve_types();
+
+        let symbols = table.all_symbols().collect::<Vec<_>>();
+        assert_eq!(symbols.len(), 2);
+
+        // Find the return type and make sure it has resolved to the FQN of the
+        // type variable `Foo`, and not the symbol `Foo` that is a type alias, and
+        // in a lower scope
+        let return_type = symbols[1]
+            .kind
+            .as_function()
+            .unwrap()
+            .return_type()
+            .unwrap();
+
+        assert_eq!(return_type.fqn, "index.ts::identity::Foo");
+    }
 }
