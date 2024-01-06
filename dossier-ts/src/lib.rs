@@ -6,6 +6,7 @@ mod property;
 mod symbol;
 mod symbol_table;
 mod type_alias;
+mod type_variable;
 mod types;
 
 use dossier_core::tree_sitter::{Node, Parser};

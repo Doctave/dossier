@@ -55,6 +55,7 @@ impl Symbol {
             SymbolKind::TypeAlias(a) => a.as_entity(&self.source, &self.fqn),
             SymbolKind::Type(t) => t.as_entity(&self.source, &self.fqn),
             SymbolKind::Property(p) => p.as_entity(&self.source, &self.fqn),
+            SymbolKind::TypeVariable(t) => t.as_entity(&self.source, &self.fqn),
         }
     }
 
@@ -68,6 +69,7 @@ impl Symbol {
             SymbolKind::TypeAlias(a) => a.children.as_slice(),
             SymbolKind::Type(t) => t.children(),
             SymbolKind::Property(p) => p.children.as_slice(),
+            SymbolKind::TypeVariable(t) => t.children.as_slice(),
         }
     }
 
@@ -77,6 +79,7 @@ impl Symbol {
             SymbolKind::TypeAlias(ref mut a) => a.children.as_mut_slice(),
             SymbolKind::Type(ref mut t) => t.children_mut(),
             SymbolKind::Property(ref mut p) => p.children.as_mut_slice(),
+            SymbolKind::TypeVariable(ref mut t) => t.children.as_mut_slice(),
         }
     }
 
@@ -98,6 +101,7 @@ impl Symbol {
 pub(crate) enum SymbolContext {
     ReturnType,
     Property,
+    Constraint,
 }
 
 /// The type of the symbol.
@@ -107,6 +111,7 @@ pub(crate) enum SymbolKind {
     Function(crate::function::Function),
     TypeAlias(crate::type_alias::TypeAlias),
     Type(crate::types::Type),
+    TypeVariable(crate::type_variable::TypeVariable),
     Property(crate::property::Property),
 }
 
@@ -117,6 +122,15 @@ impl SymbolKind {
             SymbolKind::TypeAlias(a) => a.identifier.as_str(),
             SymbolKind::Type(t) => t.identifier(),
             SymbolKind::Property(p) => p.identifier.as_str(),
+            SymbolKind::TypeVariable(t) => t.identifier.as_str(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn as_type_variable(&self) -> Option<&crate::type_variable::TypeVariable> {
+        match self {
+            SymbolKind::TypeVariable(f) => Some(f),
+            _ => None,
         }
     }
 

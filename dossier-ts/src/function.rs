@@ -4,16 +4,16 @@ use dossier_core::{helpers::*, Entity, Result};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
-use crate::helpers::*;
-use crate::symbol::SymbolContext;
+use crate::{helpers::*, type_variable};
 use crate::{
-    symbol::{Source, Symbol, SymbolKind},
+    symbol::{Source, Symbol, SymbolContext, SymbolKind},
     types, ParserContext,
 };
 
 const QUERY_STRING: &str = indoc! {"
     (function_declaration 
           name: (identifier) @function_name
+          type_parameters: (type_parameters) ? @function_type_parameters
           parameters: (formal_parameters) @function_parameters
           return_type: (type_annotation) ? @function_return_type
     ) @function
@@ -55,6 +55,13 @@ impl Function {
     }
 
     #[cfg(test)]
+    pub fn type_variables(&self) -> impl Iterator<Item = &Symbol> {
+        self.children
+            .iter()
+            .filter(|s| s.kind.as_type_variable().is_some())
+    }
+
+    #[cfg(test)]
     pub fn return_type(&self) -> Option<&Symbol> {
         self.children
             .iter()
@@ -92,6 +99,12 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         ctx.pop_context();
     }
 
+    if let Some(type_parameters) =
+        node_for_capture("function_type_parameters", function.captures, &QUERY)
+    {
+        parse_type_parameters(&type_parameters, &mut children, ctx);
+    }
+
     let docs = find_docs(&main_node, ctx.code);
 
     ctx.pop_scope();
@@ -106,6 +119,28 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         }),
         Source::for_node(&main_node, ctx),
     ))
+}
+
+fn parse_type_parameters(
+    type_parameters: &Node,
+    children: &mut Vec<Symbol>,
+    ctx: &mut ParserContext,
+) {
+    assert_eq!(type_parameters.kind(), "type_parameters");
+
+    let mut cursor = type_parameters.walk();
+    cursor.goto_first_child();
+
+    loop {
+        if cursor.node().kind() == "type_parameter" {
+            let type_variable = type_variable::parse(&cursor.node(), ctx).unwrap();
+            children.push(type_variable);
+        }
+
+        if !cursor.goto_next_sibling() {
+            break;
+        }
+    }
 }
 
 fn find_docs<'a>(node: &Node<'a>, code: &'a str) -> Option<&'a str> {
@@ -133,4 +168,67 @@ fn is_exported(node: &Node) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod test {
+    use crate::types::Type;
+
+    use super::*;
+    use dossier_core::tree_sitter::Parser;
+    use dossier_core::tree_sitter::TreeCursor;
+    use std::path::Path;
+
+    fn init_parser() -> Parser {
+        let mut parser = Parser::new();
+        parser
+            .set_language(tree_sitter_typescript::language_typescript())
+            .expect("Error loading TypeScript grammar");
+
+        parser
+    }
+
+    fn walk_tree_to_function(cursor: &mut TreeCursor) {
+        assert_eq!(cursor.node().kind(), "program");
+        cursor.goto_first_child();
+        assert_eq!(cursor.node().kind(), "function_declaration");
+    }
+
+    #[test]
+    fn generics_in_functions() {
+        let code = indoc! {r#"
+        function identity<Type>(arg: Type): Type {}
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_function(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let function = symbol.kind.as_function().unwrap();
+
+        assert_eq!(function.identifier, "identity");
+        assert_eq!(function.type_variables().count(), 1);
+
+        let type_variable = function.type_variables().collect::<Vec<_>>()[0];
+        assert!(type_variable.scope_id > symbol.scope_id);
+
+        let type_variable_kind = type_variable.kind.as_type_variable().unwrap();
+        assert_eq!(type_variable_kind.identifier, "Type");
+        assert_eq!(type_variable_kind.constraints().count(), 0);
+
+        let return_type = function.return_type().unwrap().kind.as_type().unwrap();
+        match return_type {
+            Type::Identifier(identifier, None) => {
+                assert_eq!(identifier, "Type");
+            }
+            _ => panic!("Expected type variable"),
+        }
+    }
 }
