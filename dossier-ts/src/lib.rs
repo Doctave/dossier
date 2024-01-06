@@ -2,6 +2,7 @@ mod export_clause;
 mod function;
 mod helpers;
 mod import;
+mod parameter;
 mod property;
 mod symbol;
 mod symbol_table;

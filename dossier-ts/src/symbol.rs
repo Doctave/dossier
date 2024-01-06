@@ -54,6 +54,7 @@ impl Symbol {
             SymbolKind::Function(f) => f.as_entity(&self.source, &self.fqn),
             SymbolKind::TypeAlias(a) => a.as_entity(&self.source, &self.fqn),
             SymbolKind::Type(t) => t.as_entity(&self.source, &self.fqn),
+            SymbolKind::Parameter(p) => p.as_entity(&self.source, &self.fqn),
             SymbolKind::Property(p) => p.as_entity(&self.source, &self.fqn),
             SymbolKind::TypeVariable(t) => t.as_entity(&self.source, &self.fqn),
             SymbolKind::TypeConstraint(t) => t.as_entity(&self.source, &self.fqn),
@@ -69,6 +70,7 @@ impl Symbol {
             SymbolKind::Function(f) => f.children.as_slice(),
             SymbolKind::TypeAlias(a) => a.children.as_slice(),
             SymbolKind::Type(t) => t.children(),
+            SymbolKind::Parameter(p) => p.children.as_slice(),
             SymbolKind::Property(p) => p.children.as_slice(),
             SymbolKind::TypeVariable(t) => t.children.as_slice(),
             SymbolKind::TypeConstraint(t) => t.children.as_slice(),
@@ -80,6 +82,7 @@ impl Symbol {
             SymbolKind::Function(ref mut f) => f.children.as_mut_slice(),
             SymbolKind::TypeAlias(ref mut a) => a.children.as_mut_slice(),
             SymbolKind::Type(ref mut t) => t.children_mut(),
+            SymbolKind::Parameter(ref mut p) => p.children.as_mut_slice(),
             SymbolKind::Property(ref mut p) => p.children.as_mut_slice(),
             SymbolKind::TypeVariable(ref mut t) => t.children.as_mut_slice(),
             SymbolKind::TypeConstraint(ref mut t) => t.children.as_mut_slice(),
@@ -115,6 +118,7 @@ pub(crate) enum SymbolKind {
     Type(crate::types::Type),
     TypeVariable(crate::type_variable::TypeVariable),
     TypeConstraint(crate::type_constraint::TypeConstraint),
+    Parameter(crate::parameter::Parameter),
     Property(crate::property::Property),
 }
 
@@ -124,6 +128,7 @@ impl SymbolKind {
             SymbolKind::Function(f) => f.identifier.as_str(),
             SymbolKind::TypeAlias(a) => a.identifier.as_str(),
             SymbolKind::Type(t) => t.identifier(),
+            SymbolKind::Parameter(p) => p.identifier.as_str(),
             SymbolKind::Property(p) => p.identifier.as_str(),
             SymbolKind::TypeVariable(t) => t.identifier.as_str(),
             SymbolKind::TypeConstraint(t) => t.identifier.as_str(),
@@ -174,6 +179,14 @@ impl SymbolKind {
     pub fn as_property(&self) -> Option<&crate::property::Property> {
         match self {
             SymbolKind::Property(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn as_parameter(&self) -> Option<&crate::parameter::Parameter> {
+        match self {
+            SymbolKind::Parameter(p) => Some(p),
             _ => None,
         }
     }

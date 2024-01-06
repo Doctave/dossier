@@ -4,7 +4,7 @@ use dossier_core::{helpers::*, Entity, Result};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
-use crate::{helpers::*, type_variable};
+use crate::{helpers::*, parameter, type_variable};
 use crate::{
     symbol::{Source, Symbol, SymbolContext, SymbolKind},
     types, ParserContext,
@@ -55,6 +55,13 @@ impl Function {
     }
 
     #[cfg(test)]
+    pub fn parameters(&self) -> impl Iterator<Item = &Symbol> {
+        self.children
+            .iter()
+            .filter(|s| s.kind.as_parameter().is_some())
+    }
+
+    #[cfg(test)]
     pub fn type_variables(&self) -> impl Iterator<Item = &Symbol> {
         self.children
             .iter()
@@ -83,6 +90,8 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     let main_node = node_for_capture("function", function.captures, &QUERY).unwrap();
     let name_node = node_for_capture("function_name", function.captures, &QUERY).unwrap();
     let type_param_node = node_for_capture("function_type_parameters", function.captures, &QUERY);
+    let parameters_node = node_for_capture("function_parameters", function.captures, &QUERY);
+    let return_type_node = node_for_capture("function_return_type", function.captures, &QUERY);
 
     let identifier = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
 
@@ -94,16 +103,12 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         ctx.push_scope();
     }
 
-    // let parameter_node = node_for_capture("function_parameters", m.captures, &QUERY);
-    if let Some(type_node) = node_for_capture("function_return_type", function.captures, &QUERY) {
-        let mut type_node_cursor = type_node.walk();
-        type_node_cursor.goto_first_child();
-        while !type_node_cursor.node().is_named() {
-            type_node_cursor.goto_next_sibling();
-        }
-        ctx.push_context(SymbolContext::ReturnType);
-        children.push(types::parse(&type_node_cursor.node(), ctx).unwrap());
-        ctx.pop_context();
+    if let Some(parameter_nodes) = parameters_node {
+        parse_parameters(&parameter_nodes, &mut children, ctx)?;
+    }
+
+    if let Some(type_node) = return_type_node {
+        parse_return_type(&type_node, &mut children, ctx)?;
     }
 
     let docs = find_docs(&main_node, ctx.code);
@@ -124,6 +129,44 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         }),
         Source::for_node(&main_node, ctx),
     ))
+}
+
+fn parse_return_type(node: &Node, children: &mut Vec<Symbol>, ctx: &mut ParserContext) -> Result<()> {
+    let mut type_node_cursor = node.walk();
+    type_node_cursor.goto_first_child();
+    while !type_node_cursor.node().is_named() {
+        type_node_cursor.goto_next_sibling();
+    }
+    ctx.push_context(SymbolContext::ReturnType);
+    children.push(types::parse(&type_node_cursor.node(), ctx).unwrap());
+    ctx.pop_context();
+    Ok(())
+}
+
+fn parse_parameters(
+    parameters: &Node,
+    children: &mut Vec<Symbol>,
+    ctx: &mut ParserContext,
+) -> Result<()> {
+    assert_eq!(parameters.kind(), "formal_parameters");
+
+    let mut cursor = parameters.walk();
+    cursor.goto_first_child();
+
+    loop {
+        if cursor.node().kind() == "required_parameter"
+            || cursor.node().kind() == "optional_parameter"
+        {
+            let parameter = parameter::parse(&cursor.node(), ctx)?;
+            children.push(parameter);
+        }
+
+        if !cursor.goto_next_sibling() {
+            break;
+        }
+    }
+
+    Ok(())
 }
 
 fn parse_type_parameters(
@@ -214,11 +257,57 @@ mod test {
             &mut ParserContext::new(Path::new("index.ts"), code),
         )
         .unwrap();
-        
+
         assert_eq!(symbol.fqn, "index.ts::foo");
 
-        let type_variable = symbol.kind.as_function().unwrap().type_variables().next().unwrap();
+        let type_variable = symbol
+            .kind
+            .as_function()
+            .unwrap()
+            .type_variables()
+            .next()
+            .unwrap();
         assert_eq!(type_variable.fqn, "index.ts::foo::Bar");
+    }
+
+    #[test]
+    fn parameters() {
+        let code = indoc! {r#"
+        function foo(bar: string, baz, fizz?) {}
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_function(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let function = symbol.kind.as_function().unwrap();
+
+        let params = function.parameters().collect::<Vec<_>>();
+        assert_eq!(params.len(), 3);
+
+        let bar = params[0].kind.as_parameter().unwrap();
+        assert_eq!(bar.identifier, "bar");
+        assert_eq!(bar.optional, false);
+        assert_eq!(
+            bar.parameter_type().unwrap().kind.as_type().unwrap(),
+            &Type::Predefined("string".to_owned())
+        );
+
+        let baz = params[1].kind.as_parameter().unwrap();
+        assert_eq!(baz.identifier, "baz");
+        assert_eq!(baz.optional, false);
+        assert_eq!(baz.parameter_type(), None);
+
+        let fizz = params[2].kind.as_parameter().unwrap();
+        assert_eq!(fizz.identifier, "fizz");
+        assert_eq!(fizz.optional, true);
+        assert_eq!(fizz.parameter_type(), None);
     }
 
     #[test]
