@@ -19,14 +19,19 @@ pub(crate) enum Type {
         raw_string: String,
         properties: Vec<Symbol>,
     },
+    Union {
+        members: Vec<Symbol>,
+    },
 }
 
 impl Type {
+    /// TODO(Nik): Identifiers don't make sense in this situation
     pub fn identifier(&self) -> &str {
         match self {
             Type::Predefined(type_name) => type_name.as_str(),
             Type::Identifier(identifier, _) => identifier.as_str(),
             Type::Object { raw_string, .. } => raw_string.as_str(),
+            Type::Union { .. } => "union",
         }
     }
 
@@ -35,6 +40,7 @@ impl Type {
             Type::Object {
                 properties: fields, ..
             } => fields,
+            Type::Union { members } => members,
             _ => &[],
         }
     }
@@ -51,6 +57,22 @@ impl Type {
 
     pub fn as_entity(&self, _source: &Source, _fqn: &str) -> Entity {
         unimplemented!()
+    }
+
+    #[cfg(test)]
+    pub fn union_left(&self) -> Option<&Symbol> {
+        match self {
+            Type::Union { members } => members.get(0),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn union_right(&self) -> Option<&Symbol> {
+        match self {
+            Type::Union { members } => members.get(1),
+            _ => None,
+        }
     }
 
     pub fn resolvable_identifier(&self) -> Option<&str> {
@@ -119,6 +141,26 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
                 }),
                 Source::for_node(node, ctx),
             ))
+        },
+        "union_type" => {
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+
+            let left = parse(&cursor.node(), ctx)?;
+
+            cursor.goto_next_sibling();
+            debug_assert_eq!(cursor.node().kind(), "|");
+            cursor.goto_next_sibling();
+
+            let right = parse(&cursor.node(), ctx)?;
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Union {
+                    members: vec![left, right],
+                }),
+                Source::for_node(node, ctx),
+            ))
         }
         _ => panic!(
             "Unhandled type kind: {} | {} | {}",
@@ -131,6 +173,15 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
 #[cfg(test)]
 mod test {
+    /// NOTE ABOUT THESE TESTS
+    ///
+    /// You'll notice that these tests define examples code snippets that
+    /// contain a type alias (e.g. `type Foo = string;`). This is because
+    /// a type definition is not valid on its own, and the parser will fail.
+    /// We need the type to be in some kind of context.
+    ///
+    /// So each test will setup their own context, move the cursor to the
+    /// point where the actual type starts, and then parse only the type.
     use super::*;
     use dossier_core::tree_sitter::Parser;
     use dossier_core::tree_sitter::TreeCursor;
@@ -259,6 +310,74 @@ mod test {
                         .unwrap(),
                     &Type::Predefined("number".to_string())
                 );
+            }
+            _ => panic!("Expected a type identifier"),
+        }
+    }
+
+    #[test]
+    fn parses_union_type() {
+        let code = indoc! {r#"
+            type Foo = string | number;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        match type_def {
+            Type::Union { .. } => {
+                let left = type_def.union_left().unwrap().kind.as_type().unwrap();
+                assert_eq!(left, &Type::Predefined("string".to_string()));
+
+                let right = type_def.union_right().unwrap().kind.as_type().unwrap();
+                assert_eq!(right, &Type::Predefined("number".to_string()));
+            }
+            _ => panic!("Expected a type identifier"),
+        }
+    }
+
+    #[test]
+    fn parses_nested_union_type() {
+        let code = indoc! {r#"
+            type Foo = string | number | boolean;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        match type_def {
+            Type::Union { .. } => {
+                let left = type_def.union_left().unwrap().kind.as_type().unwrap();
+                let left_left = left.union_left().unwrap().kind.as_type().unwrap();
+                assert_eq!(left_left, &Type::Predefined("string".to_string()));
+
+                let left_right = left.union_right().unwrap().kind.as_type().unwrap();
+                assert_eq!(left_right, &Type::Predefined("number".to_string()));
+
+                let right = type_def.union_right().unwrap().kind.as_type().unwrap();
+                assert_eq!(right, &Type::Predefined("boolean".to_string()));
             }
             _ => panic!("Expected a type identifier"),
         }

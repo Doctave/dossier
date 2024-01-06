@@ -36,7 +36,7 @@ This is the list of types Dossier currently supports:
 | Type feature           | Status |
 | ---------------------- | :----: |
 | Generic types          |   🚧   |
-| Union types            |   🚧   |
+| Union types            |   ✅   |
 | Array types            |   🚧   |
 | Keyof / (Typeof ?)     |   🚧   |
 | Intersection types     |   🚧   |
