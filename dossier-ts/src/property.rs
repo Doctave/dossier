@@ -36,6 +36,11 @@ impl Property {
     pub fn as_entity(&self, _source: &Source, _fqn: &str) -> Entity {
         unimplemented!()
     }
+
+    #[cfg(test)]
+    pub fn the_type(&self) -> &Symbol {
+        &self.children[0]
+    }
 }
 
 pub(crate) const NODE_KIND: &str = "property_signature";
@@ -65,7 +70,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         SymbolKind::Property(Property {
             identifier,
             children: Vec::from([my_type]),
-            is_optional: is_optional(node),
+            is_optional: is_optional(node)
         }),
         Source {
             file: ctx.file.to_owned(),

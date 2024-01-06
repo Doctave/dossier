@@ -2,6 +2,7 @@ mod export_clause;
 mod function;
 mod helpers;
 mod import;
+mod interface;
 mod parameter;
 mod property;
 mod symbol;
@@ -121,6 +122,10 @@ fn handle_node(node: &Node, ctx: &mut ParserContext) -> Result<()> {
         }
         type_alias::NODE_KIND => {
             let symbol = type_alias::parse(node, ctx)?;
+            ctx.symbol_table.add_symbol(symbol);
+        }
+        interface::NODE_KIND => {
+            let symbol = interface::parse(node, ctx)?;
             ctx.symbol_table.add_symbol(symbol);
         }
         export_clause::NODE_KIND => {
@@ -288,6 +293,44 @@ mod test {
         assert_eq!(
             alias.the_type().kind.as_type(),
             Some(&Type::Predefined("string".to_owned()))
+        );
+    }
+
+    #[test]
+    fn parses_interface() {
+        let source = indoc! { r#"
+        interface Human {
+            name: string;
+            age?: number;
+        }
+        "#};
+
+        let table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
+
+        let symbols = table.all_symbols().collect::<Vec<_>>();
+        assert_eq!(symbols.len(), 1);
+
+        let symbol = symbols[0];
+        let interface = symbol.kind.as_interface().unwrap();
+
+        assert_eq!(interface.identifier, "Human");
+        let properties = interface.properties().collect::<Vec<_>>();
+        assert_eq!(properties.len(), 2);
+
+        assert_eq!(properties[0].identifier(), "name");
+        assert!(!properties[0].kind.as_property().unwrap().is_optional);
+        let prop_type = properties[0].kind.as_property().unwrap().the_type();
+        assert_eq!(
+            prop_type.kind.as_type().unwrap(),
+            &Type::Predefined("string".to_owned())
+        );
+
+        assert_eq!(properties[1].identifier(), "age");
+        assert!(properties[1].kind.as_property().unwrap().is_optional);
+        let prop_type = properties[1].kind.as_property().unwrap().the_type();
+        assert_eq!(
+            prop_type.kind.as_type().unwrap(),
+            &Type::Predefined("number".to_owned())
         );
     }
 

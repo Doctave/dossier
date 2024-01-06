@@ -43,6 +43,7 @@ impl Symbol {
     }
 
     pub fn mark_as_exported(&mut self) {
+        #[allow(clippy::single_match)]
         match &mut self.kind {
             SymbolKind::TypeAlias(ref mut a) => a.exported = true,
             _ => {}
@@ -52,6 +53,7 @@ impl Symbol {
     pub fn as_entity(&self) -> Entity {
         match &self.kind {
             SymbolKind::Function(f) => f.as_entity(&self.source, &self.fqn),
+            SymbolKind::Interface(i) => i.as_entity(&self.source, &self.fqn),
             SymbolKind::TypeAlias(a) => a.as_entity(&self.source, &self.fqn),
             SymbolKind::Type(t) => t.as_entity(&self.source, &self.fqn),
             SymbolKind::Parameter(p) => p.as_entity(&self.source, &self.fqn),
@@ -68,6 +70,7 @@ impl Symbol {
     pub fn children(&self) -> &[Symbol] {
         match &self.kind {
             SymbolKind::Function(f) => f.children.as_slice(),
+            SymbolKind::Interface(i) => i.children(),
             SymbolKind::TypeAlias(a) => a.children.as_slice(),
             SymbolKind::Type(t) => t.children(),
             SymbolKind::Parameter(p) => p.children.as_slice(),
@@ -80,6 +83,7 @@ impl Symbol {
     pub fn children_mut(&mut self) -> &mut [Symbol] {
         match self.kind {
             SymbolKind::Function(ref mut f) => f.children.as_mut_slice(),
+            SymbolKind::Interface(ref mut i) => i.children_mut(),
             SymbolKind::TypeAlias(ref mut a) => a.children.as_mut_slice(),
             SymbolKind::Type(ref mut t) => t.children_mut(),
             SymbolKind::Parameter(ref mut p) => p.children.as_mut_slice(),
@@ -114,6 +118,7 @@ pub(crate) enum SymbolContext {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum SymbolKind {
     Function(crate::function::Function),
+    Interface(crate::interface::Interface),
     TypeAlias(crate::type_alias::TypeAlias),
     Type(crate::types::Type),
     TypeVariable(crate::type_variable::TypeVariable),
@@ -126,6 +131,7 @@ impl SymbolKind {
     pub fn identifier(&self) -> &str {
         match &self {
             SymbolKind::Function(f) => f.identifier.as_str(),
+            SymbolKind::Interface(i) => i.identifier.as_str(),
             SymbolKind::TypeAlias(a) => a.identifier.as_str(),
             SymbolKind::Type(t) => t.identifier(),
             SymbolKind::Parameter(p) => p.identifier.as_str(),
@@ -139,6 +145,14 @@ impl SymbolKind {
     pub fn as_function(&self) -> Option<&crate::function::Function> {
         match self {
             SymbolKind::Function(f) => Some(f),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn as_interface(&self) -> Option<&crate::interface::Interface> {
+        match self {
+            SymbolKind::Interface(f) => Some(f),
             _ => None,
         }
     }
