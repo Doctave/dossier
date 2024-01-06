@@ -115,13 +115,11 @@ fn handle_node(node: &Node, ctx: &mut ParserContext) -> Result<()> {
         }
         function::NODE_KIND => {
             let symbol = function::parse(node, ctx)?;
-            ctx.symbol_table
-                .add_symbol(symbol.identifier().to_owned().as_str(), symbol);
+            ctx.symbol_table.add_symbol(symbol);
         }
         type_alias::NODE_KIND => {
             let symbol = type_alias::parse(node, ctx)?;
-            ctx.symbol_table
-                .add_symbol(symbol.identifier().to_owned().as_str(), symbol);
+            ctx.symbol_table.add_symbol(symbol);
         }
         export_clause::NODE_KIND => {
             let exported_identifiers = export_clause::parse_exports(node, ctx)?;

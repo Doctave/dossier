@@ -204,7 +204,6 @@ mod test {
         let mut cursor = tree.root_node().walk();
         walk_tree_to_function(&mut cursor);
 
-        // Parse
         let symbol = parse(
             &cursor.node(),
             &mut ParserContext::new(Path::new("index.ts"), code),

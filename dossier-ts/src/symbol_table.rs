@@ -65,9 +65,9 @@ impl SymbolTable {
                 .and_then(|s| s.parent);
         }
 
-        self.symbols.iter().find(|sym| {
-            parent_scopes.contains(&sym.scope_id) && sym.kind.identifier() == identifier
-        })
+        self.symbols
+            .iter()
+            .find(|sym| parent_scopes.contains(&sym.scope_id) && sym.identifier() == identifier)
     }
 
     pub fn lookup_mut(&mut self, identifier: &str, scope_id: ScopeID) -> Option<&mut Symbol> {
@@ -83,9 +83,9 @@ impl SymbolTable {
                 .and_then(|s| s.parent);
         }
 
-        self.symbols.iter_mut().find(|sym| {
-            parent_scopes.contains(&sym.scope_id) && sym.kind.identifier() == identifier
-        })
+        self.symbols
+            .iter_mut()
+            .find(|sym| parent_scopes.contains(&sym.scope_id) && sym.identifier() == identifier)
     }
 
     pub fn lookup_import(&self, identifier: &str, scope_id: ScopeID) -> Option<&Import> {
@@ -112,7 +112,7 @@ impl SymbolTable {
         self.scopes.iter().flat_map(|s| s.imports.iter())
     }
 
-    pub fn add_symbol(&mut self, identifier: &str, symbol: Symbol) {
+    pub fn add_symbol(&mut self, symbol: Symbol) {
         self.symbols.push(symbol);
     }
 
@@ -368,25 +368,22 @@ mod test {
     #[test]
     fn symbol_table_lookup() {
         let mut table = SymbolTable::new("foo.ts");
-        table.add_symbol(
-            "foo",
-            Symbol {
-                kind: SymbolKind::Function(crate::function::Function {
-                    identifier: "foo".to_owned(),
-                    documentation: None,
-                    is_exported: false,
-                    children: vec![],
-                }),
-                source: Source {
-                    file: PathBuf::from("foo.ts"),
-                    offset_start_bytes: 0,
-                    offset_end_bytes: 0,
-                },
-                fqn: "foo.ts::foo".to_owned(),
-                context: None,
-                scope_id: table.current_scope().id,
+        table.add_symbol(Symbol {
+            kind: SymbolKind::Function(crate::function::Function {
+                identifier: "foo".to_owned(),
+                documentation: None,
+                is_exported: false,
+                children: vec![],
+            }),
+            source: Source {
+                file: PathBuf::from("foo.ts"),
+                offset_start_bytes: 0,
+                offset_end_bytes: 0,
             },
-        );
+            fqn: "foo.ts::foo".to_owned(),
+            context: None,
+            scope_id: table.current_scope().id,
+        });
 
         let symbol = table.lookup("foo", table.root_scope().id).unwrap();
 
@@ -407,25 +404,22 @@ mod test {
 
         table.push_scope("bar");
 
-        table.add_symbol(
-            "foo",
-            Symbol {
-                kind: SymbolKind::Function(crate::function::Function {
-                    identifier: "foo".to_owned(),
-                    documentation: None,
-                    is_exported: false,
-                    children: vec![],
-                }),
-                source: Source {
-                    file: PathBuf::from("foo.ts"),
-                    offset_start_bytes: 0,
-                    offset_end_bytes: 0,
-                },
-                fqn: "foo.ts::foo".to_owned(),
-                context: None,
-                scope_id: table.current_scope().id,
+        table.add_symbol(Symbol {
+            kind: SymbolKind::Function(crate::function::Function {
+                identifier: "foo".to_owned(),
+                documentation: None,
+                is_exported: false,
+                children: vec![],
+            }),
+            source: Source {
+                file: PathBuf::from("foo.ts"),
+                offset_start_bytes: 0,
+                offset_end_bytes: 0,
             },
-        );
+            fqn: "foo.ts::foo".to_owned(),
+            context: None,
+            scope_id: table.current_scope().id,
+        });
 
         table.pop_scope();
 
@@ -436,25 +430,22 @@ mod test {
     fn lookup_in_parent_scopes() {
         let mut table = SymbolTable::new("foo.ts");
 
-        table.add_symbol(
-            "foo",
-            Symbol {
-                kind: SymbolKind::Function(crate::function::Function {
-                    identifier: "foo".to_owned(),
-                    documentation: None,
-                    is_exported: false,
-                    children: vec![],
-                }),
-                source: Source {
-                    file: PathBuf::from("foo.ts"),
-                    offset_start_bytes: 0,
-                    offset_end_bytes: 0,
-                },
-                fqn: "foo.ts::foo".to_owned(),
-                context: None,
-                scope_id: table.current_scope().id,
+        table.add_symbol(Symbol {
+            kind: SymbolKind::Function(crate::function::Function {
+                identifier: "foo".to_owned(),
+                documentation: None,
+                is_exported: false,
+                children: vec![],
+            }),
+            source: Source {
+                file: PathBuf::from("foo.ts"),
+                offset_start_bytes: 0,
+                offset_end_bytes: 0,
             },
-        );
+            fqn: "foo.ts::foo".to_owned(),
+            context: None,
+            scope_id: table.current_scope().id,
+        });
 
         table.push_scope("foo");
         table.push_scope("bar");
