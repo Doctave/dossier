@@ -70,7 +70,7 @@ impl Symbol {
     pub fn children(&self) -> &[Symbol] {
         match &self.kind {
             SymbolKind::Function(f) => f.children.as_slice(),
-            SymbolKind::Interface(i) => i.children(),
+            SymbolKind::Interface(i) => i.children.as_slice(),
             SymbolKind::TypeAlias(a) => a.children.as_slice(),
             SymbolKind::Type(t) => t.children(),
             SymbolKind::Parameter(p) => p.children.as_slice(),
@@ -83,7 +83,7 @@ impl Symbol {
     pub fn children_mut(&mut self) -> &mut [Symbol] {
         match self.kind {
             SymbolKind::Function(ref mut f) => f.children.as_mut_slice(),
-            SymbolKind::Interface(ref mut i) => i.children_mut(),
+            SymbolKind::Interface(ref mut i) => i.children.as_mut_slice(),
             SymbolKind::TypeAlias(ref mut a) => a.children.as_mut_slice(),
             SymbolKind::Type(ref mut t) => t.children_mut(),
             SymbolKind::Parameter(ref mut p) => p.children.as_mut_slice(),

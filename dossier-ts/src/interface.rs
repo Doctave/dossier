@@ -1,6 +1,7 @@
 use crate::{
     helpers::*,
     symbol::{Source, Symbol, SymbolKind},
+    type_variable,
     types, ParserContext,
 };
 use dossier_core::{tree_sitter::Node, Entity, Result};
@@ -13,7 +14,7 @@ pub(crate) struct Interface {
     pub documentation: Option<String>,
     /// Interfaces are actually just a single object type.
     /// We forward a bunch of methods to this child object.
-    pub object_type: Box<Symbol>,
+    pub children: Vec<Symbol>,
     pub exported: bool,
 }
 
@@ -22,17 +23,22 @@ impl Interface {
         unimplemented!()
     }
 
-    pub fn children(&self) -> &[Symbol] {
-        self.object_type.children()
-    }
-
-    pub fn children_mut(&mut self) -> &mut [Symbol] {
-        self.object_type.children_mut()
+    #[cfg(test)]
+    pub fn type_variables(&self) -> impl Iterator<Item = &Symbol> {
+        self.children
+            .iter()
+            .filter(|s| s.kind.as_type_variable().is_some())
     }
 
     #[cfg(test)]
+    /// Not actually the properties of the interface, but the properties of the
+    /// object type that the interface is forwarding to.
     pub fn properties(&self) -> impl Iterator<Item = &Symbol> {
-        self.children()
+        self.children
+            .iter()
+            .find(|s| s.kind.as_type().is_some())
+            .unwrap()
+            .children()
             .iter()
             .filter(|s| s.kind.as_property().is_some())
     }
@@ -41,6 +47,8 @@ impl Interface {
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     assert_eq!(node.kind(), NODE_KIND);
 
+    let mut children = vec![];
+    let mut has_generics = false;
     let mut cursor = node.walk();
 
     cursor.goto_first_child();
@@ -52,18 +60,35 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         .unwrap()
         .to_owned();
 
+    ctx.push_scope();
+    ctx.push_fqn(&identifier);
+
+    cursor.goto_next_sibling();
+
+    if cursor.node().kind() == "type_parameters" {
+        parse_type_parameters(&cursor.node(), &mut children, ctx);
+        ctx.push_scope();
+        has_generics = true;
+    }
+
     cursor.goto_next_sibling();
 
     debug_assert_eq!(cursor.node().kind(), "object_type");
 
-    let object_type = types::parse(&cursor.node(), ctx).map(Box::new)?;
+    children.push(types::parse(&cursor.node(), ctx)?);
+
+    ctx.pop_fqn();
+    ctx.pop_scope();
+    if has_generics {
+        ctx.pop_scope();
+    }
 
     Ok(Symbol::in_context(
         ctx,
         SymbolKind::Interface(Interface {
             identifier,
             documentation: find_docs(node, ctx.code).map(process_comment),
-            object_type,
+            children,
             exported: is_exported(node),
         }),
         Source::for_node(node, ctx),
@@ -97,9 +122,32 @@ fn is_exported(node: &Node) -> bool {
     false
 }
 
+fn parse_type_parameters(
+    type_parameters: &Node,
+    children: &mut Vec<Symbol>,
+    ctx: &mut ParserContext,
+) {
+    assert_eq!(type_parameters.kind(), "type_parameters");
+
+    let mut cursor = type_parameters.walk();
+    cursor.goto_first_child();
+
+    loop {
+        if cursor.node().kind() == "type_parameter" {
+            let type_variable = type_variable::parse(&cursor.node(), ctx).unwrap();
+            children.push(type_variable);
+        }
+
+        if !cursor.goto_next_sibling() {
+            break;
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::types::Type;
     use dossier_core::tree_sitter::Parser;
     use dossier_core::tree_sitter::TreeCursor;
     use indoc::indoc;
@@ -185,5 +233,52 @@ mod test {
             symbol.kind.as_interface().unwrap().exported,
             "Should be exported"
         );
+    }
+
+    #[test]
+    fn generics() {
+        let code = indoc! {r#"
+        interface KeyValue<K, V extends string> {
+          key: K,
+          value: V
+        }
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_interface(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let interface = symbol.kind.as_interface().unwrap();
+        let generics = interface.type_variables().collect::<Vec<_>>();
+        assert_eq!(generics.len(), 2);
+
+        assert!(symbol.scope_id < generics[0].scope_id);
+        let type_var = generics[0].kind.as_type_variable().unwrap();
+        assert_eq!(type_var.identifier, "K");
+        assert_eq!(type_var.constraints().count(), 0);
+
+        let type_var = generics[1].kind.as_type_variable().unwrap();
+        assert_eq!(type_var.identifier, "V");
+        let constraint = type_var.constraints().next().unwrap();
+        assert_eq!(
+            constraint
+                .kind
+                .as_type_constraint()
+                .unwrap()
+                .the_type()
+                .kind
+                .as_type()
+                .unwrap(),
+            &Type::Predefined("string".to_owned())
+        );
+
+        let property = interface.properties().collect::<Vec<_>>()[0];
+        assert!(generics[0].scope_id < property.scope_id);
     }
 }
