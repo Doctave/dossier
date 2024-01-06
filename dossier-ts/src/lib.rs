@@ -6,6 +6,7 @@ mod property;
 mod symbol;
 mod symbol_table;
 mod type_alias;
+mod type_constraint;
 mod type_variable;
 mod types;
 
@@ -292,16 +293,11 @@ mod test {
         "#};
 
         let mut table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
-        let symbols = table.all_symbols().collect::<Vec<_>>();
-
-        println!("{:#?}", symbols);
 
         table.resolve_types();
 
         let symbols = table.all_symbols().collect::<Vec<_>>();
         assert_eq!(symbols.len(), 2);
-
-        println!("{:#?}", symbols);
 
         let function = symbols[1].kind.as_function().unwrap();
 

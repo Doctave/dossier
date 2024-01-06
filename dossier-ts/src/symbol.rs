@@ -56,6 +56,7 @@ impl Symbol {
             SymbolKind::Type(t) => t.as_entity(&self.source, &self.fqn),
             SymbolKind::Property(p) => p.as_entity(&self.source, &self.fqn),
             SymbolKind::TypeVariable(t) => t.as_entity(&self.source, &self.fqn),
+            SymbolKind::TypeConstraint(t) => t.as_entity(&self.source, &self.fqn),
         }
     }
 
@@ -70,6 +71,7 @@ impl Symbol {
             SymbolKind::Type(t) => t.children(),
             SymbolKind::Property(p) => p.children.as_slice(),
             SymbolKind::TypeVariable(t) => t.children.as_slice(),
+            SymbolKind::TypeConstraint(t) => t.children.as_slice(),
         }
     }
 
@@ -80,6 +82,7 @@ impl Symbol {
             SymbolKind::Type(ref mut t) => t.children_mut(),
             SymbolKind::Property(ref mut p) => p.children.as_mut_slice(),
             SymbolKind::TypeVariable(ref mut t) => t.children.as_mut_slice(),
+            SymbolKind::TypeConstraint(ref mut t) => t.children.as_mut_slice(),
         }
     }
 
@@ -101,7 +104,6 @@ impl Symbol {
 pub(crate) enum SymbolContext {
     ReturnType,
     Property,
-    Constraint,
 }
 
 /// The type of the symbol.
@@ -112,6 +114,7 @@ pub(crate) enum SymbolKind {
     TypeAlias(crate::type_alias::TypeAlias),
     Type(crate::types::Type),
     TypeVariable(crate::type_variable::TypeVariable),
+    TypeConstraint(crate::type_constraint::TypeConstraint),
     Property(crate::property::Property),
 }
 
@@ -123,14 +126,7 @@ impl SymbolKind {
             SymbolKind::Type(t) => t.identifier(),
             SymbolKind::Property(p) => p.identifier.as_str(),
             SymbolKind::TypeVariable(t) => t.identifier.as_str(),
-        }
-    }
-
-    #[cfg(test)]
-    pub fn as_type_variable(&self) -> Option<&crate::type_variable::TypeVariable> {
-        match self {
-            SymbolKind::TypeVariable(f) => Some(f),
-            _ => None,
+            SymbolKind::TypeConstraint(t) => t.identifier.as_str(),
         }
     }
 
@@ -151,6 +147,22 @@ impl SymbolKind {
     }
 
     #[cfg(test)]
+    pub fn as_type_variable(&self) -> Option<&crate::type_variable::TypeVariable> {
+        match self {
+            SymbolKind::TypeVariable(f) => Some(f),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn as_type_constraint(&self) -> Option<&crate::type_constraint::TypeConstraint> {
+        match self {
+            SymbolKind::TypeConstraint(t) => Some(t),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
     pub fn as_type(&self) -> Option<&crate::types::Type> {
         match self {
             SymbolKind::Type(t) => Some(t),
@@ -164,6 +176,28 @@ impl SymbolKind {
             SymbolKind::Property(p) => Some(p),
             _ => None,
         }
+    }
+}
+
+pub(crate) struct SymbolIterator<'a> {
+    stack: std::collections::VecDeque<&'a Symbol>,
+}
+
+impl<'a> SymbolIterator<'a> {
+    pub fn new(symbols: &'a [Symbol]) -> Self {
+        let stack = symbols.iter().collect();
+        SymbolIterator { stack }
+    }
+}
+
+impl<'a> Iterator for SymbolIterator<'a> {
+    type Item = &'a Symbol;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.stack.pop_front().map(|symbol| {
+            self.stack.extend(symbol.children());
+            symbol
+        })
     }
 }
 

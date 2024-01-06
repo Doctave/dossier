@@ -4,7 +4,7 @@ use dossier_core::{tree_sitter::Node, Result};
 pub(crate) const NODE_KIND: &str = "export_clause";
 
 pub(crate) fn parse_exports(node: &Node, ctx: &mut ParserContext) -> Result<Vec<String>> {
-    println!("node: {:?} | {}", node, node.to_sexp());
+    assert_eq!(node.kind(), NODE_KIND);
 
     let mut out = vec![];
 

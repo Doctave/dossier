@@ -67,7 +67,9 @@ impl SymbolTable {
 
         self.symbols
             .iter()
-            .find(|sym| parent_scopes.contains(&sym.scope_id) && sym.identifier() == identifier)
+            .filter(|sym| sym.identifier() == identifier)
+            .filter(|sym| parent_scopes.contains(&sym.scope_id))
+            .max_by(|sym, other| sym.scope_id.cmp(&other.scope_id))
     }
 
     pub fn lookup_mut(&mut self, identifier: &str, scope_id: ScopeID) -> Option<&mut Symbol> {
@@ -85,7 +87,9 @@ impl SymbolTable {
 
         self.symbols
             .iter_mut()
-            .find(|sym| parent_scopes.contains(&sym.scope_id) && sym.identifier() == identifier)
+            .filter(|sym| sym.identifier() == identifier)
+            .filter(|sym| parent_scopes.contains(&sym.scope_id))
+            .max_by(|sym, other| sym.scope_id.cmp(&other.scope_id))
     }
 
     pub fn lookup_import(&self, identifier: &str, scope_id: ScopeID) -> Option<&Import> {

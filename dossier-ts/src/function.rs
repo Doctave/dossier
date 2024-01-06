@@ -195,7 +195,7 @@ mod test {
     }
 
     #[test]
-    fn generics_in_functions() {
+    fn generics() {
         let code = indoc! {r#"
         function identity<Type>(arg: Type): Type {}
         "#};
@@ -229,5 +229,49 @@ mod test {
             }
             _ => panic!("Expected type variable"),
         }
+    }
+
+    #[test]
+    fn generics_with_extends_constraint() {
+        let code = indoc! {r#"
+        function identity<Type extends SomeOtherType>(arg: Type): Type {}
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_function(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let function = symbol.kind.as_function().unwrap();
+
+        assert_eq!(function.identifier, "identity");
+        assert_eq!(function.type_variables().count(), 1);
+
+        let type_variable = function.type_variables().collect::<Vec<_>>()[0];
+        assert!(type_variable.scope_id > symbol.scope_id);
+
+        let type_variable_kind = type_variable.kind.as_type_variable().unwrap();
+        assert_eq!(type_variable_kind.identifier, "Type");
+        assert_eq!(type_variable_kind.constraints().count(), 1);
+
+        let constraint = type_variable_kind.constraints().next().unwrap();
+
+        let constraint_kind = constraint.kind.as_type_constraint().unwrap();
+
+        assert!(constraint_kind.extends);
+        assert_eq!(
+            constraint_kind
+                .the_type()
+                .kind
+                .as_type()
+                .unwrap()
+                .identifier(),
+            "SomeOtherType"
+        );
     }
 }
