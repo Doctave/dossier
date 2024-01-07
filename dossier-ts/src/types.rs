@@ -50,6 +50,7 @@ pub(crate) enum Type {
     TemplateLiteral(String),
     KeyOf(Vec<Symbol>),
     ReadOnly(Vec<Symbol>),
+    Lookup(Vec<Symbol>),
     Constructor {
         members: Vec<Symbol>,
     },
@@ -73,7 +74,10 @@ impl Type {
             Type::TypeOf(name) => name,
             // TODO: Safely access these vecs and assume there's something there?
             Type::KeyOf(symbol) => symbol[0].identifier(),
+            // TODO: Safely access these vecs and assume there's something there?
             Type::ReadOnly(symbol) => symbol[0].identifier(),
+            // TODO: Safely access these vecs and assume there's something there?
+            Type::Lookup(symbol) => symbol[0].identifier(),
             Type::Literal(name) => name,
             Type::TemplateLiteral(name) => name,
             Type::Constructor { .. } => "constructor",
@@ -92,6 +96,7 @@ impl Type {
             Type::Parenthesized(nested) => nested,
             Type::KeyOf(nested) => nested,
             Type::ReadOnly(nested) => nested,
+            Type::Lookup(nested) => nested,
             _ => &[],
         }
     }
@@ -112,12 +117,31 @@ impl Type {
             Type::Function {
                 ref mut members, ..
             } => members,
+            Type::Parenthesized(nested) => nested,
+            Type::KeyOf(nested) => nested,
+            Type::ReadOnly(nested) => nested,
+            Type::Lookup(nested) => nested,
             _ => &mut [],
         }
     }
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::Lookup(members) => {
+                let meta = json!({});
+
+                Entity {
+                    title: format!("{}[{}]", members[0].identifier(), members[1].identifier()),
+                    description: String::new(),
+                    kind: "template_literal_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: members.iter().map(|s| s.as_entity()).collect(),
+                }
+            }
             Type::TemplateLiteral(literal) => {
                 let meta = json!({});
 
@@ -441,12 +465,25 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "lookup_type" => {
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+
+            let left = parse(&cursor.node(), ctx)?;
+
+            cursor.goto_next_sibling();
+            cursor.goto_next_sibling();
+
+            let right = parse(&cursor.node(), ctx)?;
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Lookup(vec![left, right])),
+                Source::for_node(node, ctx),
+            ))
+        }
         "template_literal_type" => {
-            let as_string = 
-                node
-                .utf8_text(ctx.code.as_bytes())
-                .unwrap()
-                .to_owned();
+            let as_string = node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
 
             Ok(Symbol::in_context(
                 ctx,
@@ -1234,9 +1271,47 @@ mod test {
         let the_type = symbol.kind.as_type().unwrap();
         assert!(matches!(the_type, Type::TemplateLiteral(_)));
 
-        println!("{}", the_type.identifier());
-
         assert_eq!(the_type.identifier(), "`varchar(${number})`");
+    }
+
+    #[test]
+    fn parses_lookup_type() {
+        let code = indoc! {r#"
+            type Example = Foo["example"];
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let the_type = symbol.kind.as_type().unwrap();
+        assert!(matches!(the_type, Type::Lookup { .. }));
+
+        println!("{:#?}", the_type);
+
+        let base = the_type.children()[0].kind.as_type().unwrap();
+        assert_eq!(base.identifier(), "Foo");
+        assert!(
+            matches!(base, Type::Identifier(_, None)),
+            "Expected an unresolved identifier, got {:?}",
+            base
+        );
+
+        let key = the_type.children()[1].kind.as_type().unwrap();
+        assert_eq!(key.identifier(), "\"example\"");
+        assert!(
+            matches!(key, Type::Literal(_)),
+            "Expected a literal, got {:?}",
+            base
+        );
     }
 
     #[test]
