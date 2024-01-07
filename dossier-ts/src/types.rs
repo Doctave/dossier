@@ -25,6 +25,13 @@ pub(crate) enum Type {
     Union {
         members: Vec<Symbol>,
     },
+    GenericType {
+        identifier: String,
+        members: Vec<Symbol>,
+    },
+    Array {
+        members: Vec<Symbol>,
+    },
 }
 
 impl Type {
@@ -35,6 +42,8 @@ impl Type {
             Type::Identifier(identifier, _) => identifier.as_str(),
             Type::Object { raw_string, .. } => raw_string.as_str(),
             Type::Union { .. } => "union",
+            Type::GenericType { identifier, .. } => identifier.as_str(),
+            Type::Array { .. } => "array",
         }
     }
 
@@ -44,6 +53,8 @@ impl Type {
                 properties: fields, ..
             } => fields,
             Type::Union { members } => members,
+            Type::GenericType { members, .. } => members,
+            Type::Array { members, .. } => members,
             _ => &[],
         }
     }
@@ -54,12 +65,52 @@ impl Type {
                 properties: ref mut fields,
                 ..
             } => fields,
+            Type::Union { ref mut members } => members,
+            Type::GenericType {
+                ref mut members, ..
+            } => members,
+            Type::Array {
+                ref mut members, ..
+            } => members,
             _ => &mut [],
         }
     }
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::Array { members } => {
+                let meta = json!({});
+
+                Entity {
+                    title: "array_type".to_owned(),
+                    description: String::new(),
+                    kind: "array_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: members.iter().map(|s| s.as_entity()).collect(),
+                }
+            }
+            Type::GenericType {
+                identifier,
+                members,
+            } => {
+                let meta = json!({});
+
+                Entity {
+                    title: identifier.to_owned(),
+                    description: String::new(),
+                    kind: "generic_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: members.iter().map(|s| s.as_entity()).collect(),
+                }
+            }
             Type::Union { .. } => {
                 let meta = json!({});
 
@@ -164,6 +215,49 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "array_type" => {
+            let mut members = vec![];
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+
+            members.push(parse(&cursor.node(), ctx)?);
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Array { members }),
+                Source::for_node(node, ctx),
+            ))
+        }
+        "generic_type" => {
+            let identifier = node
+                .child_by_field_name("name")
+                .unwrap()
+                .utf8_text(ctx.code.as_bytes())
+                .unwrap()
+                .to_owned();
+
+            let mut members = vec![];
+            for arg in node.children_by_field_name("type_arguments", &mut node.walk()) {
+                let mut cursor = arg.walk();
+                cursor.goto_first_child();
+                cursor.goto_next_sibling();
+
+                ctx.push_fqn(&identifier);
+
+                members.push(parse(&cursor.node(), ctx)?);
+
+                ctx.pop_fqn();
+            }
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::GenericType {
+                    identifier,
+                    members,
+                }),
+                Source::for_node(node, ctx),
+            ))
+        }
         "predefined_type" => {
             let type_name = node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
             Ok(Symbol::in_context(
@@ -236,10 +330,12 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             ))
         }
         _ => panic!(
-            "Unhandled type kind: {} | {} | {}",
+            "Unhandled type kind: {} | {} | {} | file:{} | offset:{}",
             node.kind(),
             node.utf8_text(ctx.code.as_bytes()).unwrap(),
-            node.to_sexp()
+            node.to_sexp(),
+            ctx.file.display(),
+            node.start_byte()
         ),
     }
 }
@@ -454,5 +550,61 @@ mod test {
             }
             _ => panic!("Expected a type identifier"),
         }
+    }
+
+    #[test]
+    fn parses_generic_type() {
+        let code = indoc! {r#"
+            type Foo = Promise<Example>;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        assert_eq!(type_def.identifier(), "Promise");
+        assert_eq!(type_def.children().len(), 1);
+        assert!(matches!(type_def, Type::GenericType { .. }));
+
+        let arg = type_def.children()[0].kind.as_type().unwrap();
+        assert_eq!(arg, &Type::Identifier("Example".to_owned(), None));
+    }
+
+    #[test]
+    fn parses_array_type() {
+        let code = indoc! {r#"
+            type Foo = string[];
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        assert!(matches!(type_def, Type::Array { .. }));
+
+        assert_eq!(type_def.children().len(), 1);
+
+        let arg = type_def.children()[0].kind.as_type().unwrap();
+        assert_eq!(arg, &Type::Predefined("string".to_owned()));
     }
 }
