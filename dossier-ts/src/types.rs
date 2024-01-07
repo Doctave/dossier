@@ -1295,8 +1295,6 @@ mod test {
         let the_type = symbol.kind.as_type().unwrap();
         assert!(matches!(the_type, Type::Lookup { .. }));
 
-        println!("{:#?}", the_type);
-
         let base = the_type.children()[0].kind.as_type().unwrap();
         assert_eq!(base.identifier(), "Foo");
         assert!(
