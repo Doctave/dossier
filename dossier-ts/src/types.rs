@@ -1,5 +1,5 @@
 use crate::{
-    method,
+    function, method,
     symbol::{Source, Symbol, SymbolContext, SymbolKind},
     ParserContext,
 };
@@ -32,6 +32,9 @@ pub(crate) enum Type {
     Array {
         members: Vec<Symbol>,
     },
+    Function {
+        members: Vec<Symbol>,
+    },
 }
 
 impl Type {
@@ -44,6 +47,7 @@ impl Type {
             Type::Union { .. } => "union",
             Type::GenericType { identifier, .. } => identifier.as_str(),
             Type::Array { .. } => "array",
+            Type::Function { .. } => "function",
         }
     }
 
@@ -55,6 +59,7 @@ impl Type {
             Type::Union { members } => members,
             Type::GenericType { members, .. } => members,
             Type::Array { members, .. } => members,
+            Type::Function { members, .. } => members,
             _ => &[],
         }
     }
@@ -72,12 +77,30 @@ impl Type {
             Type::Array {
                 ref mut members, ..
             } => members,
+            Type::Function {
+                ref mut members, ..
+            } => members,
             _ => &mut [],
         }
     }
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::Function { members } => {
+                let meta = json!({});
+
+                Entity {
+                    title: "function_type".to_owned(),
+                    description: String::new(),
+                    kind: "function_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: members.iter().map(|s| s.as_entity()).collect(),
+                }
+            }
             Type::Array { members } => {
                 let meta = json!({});
 
@@ -181,6 +204,26 @@ impl Type {
         }
     }
 
+    #[cfg(test)]
+    pub fn function_parameters(&self) -> impl Iterator<Item = &Symbol> {
+        match &self {
+            Type::Function { members } => {
+                members.iter().filter(|s| s.kind.as_parameter().is_some())
+            }
+            _ => panic!("Expected a function type"),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn function_return_type(&self) -> Option<&Symbol> {
+        match &self {
+            Type::Function { members } => members
+                .iter()
+                .find(|s| s.context == Some(crate::symbol::SymbolContext::ReturnType)),
+            _ => panic!("Expected a function type"),
+        }
+    }
+
     pub fn union_left(&self) -> Option<&Symbol> {
         match self {
             Type::Union { members } => members.get(0),
@@ -215,6 +258,24 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "function_type" => {
+            let mut members = vec![];
+
+            if let Some(params) = node.child_by_field_name("parameters") {
+                function::parse_parameters(&params, &mut members, ctx)?;
+            }
+            if let Some(params) = node.child_by_field_name("return_type") {
+                ctx.push_context(SymbolContext::ReturnType);
+                members.push(parse(&params, ctx)?);
+                ctx.pop_context()
+            }
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Function { members }),
+                Source::for_node(node, ctx),
+            ))
+        }
         "array_type" => {
             let mut members = vec![];
             let mut cursor = node.walk();
@@ -606,5 +667,36 @@ mod test {
 
         let arg = type_def.children()[0].kind.as_type().unwrap();
         assert_eq!(arg, &Type::Predefined("string".to_owned()));
+    }
+
+    #[test]
+    fn parses_function_type() {
+        let code = indoc! {r#"
+            type Foo = (a: string) => void;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        assert!(matches!(type_def, Type::Function { .. }));
+
+        assert_eq!(type_def.children().len(), 2);
+
+        let param = type_def.function_parameters().next().unwrap();
+        assert_eq!(param.kind.as_parameter().unwrap().identifier, "a");
+
+        let return_type = type_def.function_return_type().unwrap();
+        assert_eq!(return_type.kind.as_type().unwrap(), &Type::Predefined("void".to_owned()));
     }
 }

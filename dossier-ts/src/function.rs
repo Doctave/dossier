@@ -135,7 +135,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     ))
 }
 
-fn parse_return_type(
+pub(crate) fn parse_return_type(
     node: &Node,
     children: &mut Vec<Symbol>,
     ctx: &mut ParserContext,
@@ -151,7 +151,7 @@ fn parse_return_type(
     Ok(())
 }
 
-fn parse_parameters(
+pub(crate) fn parse_parameters(
     parameters: &Node,
     children: &mut Vec<Symbol>,
     ctx: &mut ParserContext,
@@ -177,7 +177,7 @@ fn parse_parameters(
     Ok(())
 }
 
-fn parse_type_parameters(
+pub(crate) fn parse_type_parameters(
     type_parameters: &Node,
     children: &mut Vec<Symbol>,
     ctx: &mut ParserContext,
