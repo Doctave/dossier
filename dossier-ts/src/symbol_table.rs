@@ -78,6 +78,11 @@ impl SymbolTable {
             .max_by(|sym, other| sym.scope_id.cmp(&other.scope_id))
     }
 
+    /// TODO(Nik): There is a bug here that is not addressed yet: this will only lookup
+    /// symbols at the root level.
+    ///
+    /// We need to create a mutable symbol iterator and call it similarly to how `SymbolIterator`
+    /// is working in the `lookup` method above.
     pub fn lookup_mut(&mut self, identifier: &str, scope_id: ScopeID) -> Option<&mut Symbol> {
         let mut parent_scopes = vec![];
         let mut scope_id = Some(scope_id);
