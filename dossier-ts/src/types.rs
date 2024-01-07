@@ -41,7 +41,15 @@ pub(crate) enum Type {
         members: Vec<Symbol>,
     },
     TypeOf(String),
-    KeyOf(Box<Symbol>),
+    /// TODO(Nik): Parse the template literal and access its members
+    /// Tree-sitter parses the literal into its parts, so we can
+    /// parse the child nodes and understand their types.
+    ///
+    /// Problem is giving enough metadata to reconstruct the literal
+    /// in e.g. a documentation setting.
+    TemplateLiteral(String),
+    KeyOf(Vec<Symbol>),
+    ReadOnly(Vec<Symbol>),
     Constructor {
         members: Vec<Symbol>,
     },
@@ -63,8 +71,11 @@ impl Type {
             // TODO(Nik): Does this make sense?
             // Update: nope. It should be recursive, not a string.
             Type::TypeOf(name) => name,
-            Type::KeyOf(symbol) => symbol.identifier(),
+            // TODO: Safely access these vecs and assume there's something there?
+            Type::KeyOf(symbol) => symbol[0].identifier(),
+            Type::ReadOnly(symbol) => symbol[0].identifier(),
             Type::Literal(name) => name,
+            Type::TemplateLiteral(name) => name,
             Type::Constructor { .. } => "constructor",
         }
     }
@@ -79,6 +90,8 @@ impl Type {
             Type::Array { members, .. } => members,
             Type::Function { members, .. } => members,
             Type::Parenthesized(nested) => nested,
+            Type::KeyOf(nested) => nested,
+            Type::ReadOnly(nested) => nested,
             _ => &[],
         }
     }
@@ -105,6 +118,26 @@ impl Type {
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::TemplateLiteral(literal) => {
+                let meta = json!({});
+
+                Entity {
+                    title: literal.to_owned(),
+                    description: String::new(),
+                    kind: "template_literal_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: vec![],
+                }
+            }
+            Type::ReadOnly(nested) => {
+                let mut entity = nested[0].as_entity();
+                entity.meta["readonly"] = true.into();
+                entity
+            }
             Type::KeyOf(nested) => {
                 let meta = json!({});
 
@@ -117,7 +150,7 @@ impl Type {
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
-                    members: vec![nested.as_entity()],
+                    members: vec![nested[0].as_entity()],
                 }
             }
             Type::Constructor { members } => {
@@ -408,6 +441,32 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "template_literal_type" => {
+            let as_string = 
+                node
+                .utf8_text(ctx.code.as_bytes())
+                .unwrap()
+                .to_owned();
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::TemplateLiteral(as_string)),
+                Source::for_node(node, ctx),
+            ))
+        }
+        "readonly_type" => {
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+            cursor.goto_next_sibling();
+
+            let inner = parse(&cursor.node(), ctx)?;
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::ReadOnly(vec![inner])),
+                Source::for_node(node, ctx),
+            ))
+        }
         "index_type_query" => {
             let mut cursor = node.walk();
             cursor.goto_first_child();
@@ -417,7 +476,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
             Ok(Symbol::in_context(
                 ctx,
-                SymbolKind::Type(Type::KeyOf(Box::new(inner))),
+                SymbolKind::Type(Type::KeyOf(vec![inner])),
                 Source::for_node(node, ctx),
             ))
         }
@@ -1125,6 +1184,59 @@ mod test {
 
         let parameters = type_def.constructor_parameters().collect::<Vec<_>>();
         assert_eq!(parameters.len(), 2);
+    }
+
+    #[test]
+    fn parses_readonly_type() {
+        let code = indoc! {r#"
+            type Example = readonly string;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let the_type = symbol.kind.as_type().unwrap();
+        assert!(matches!(the_type, Type::ReadOnly(_)));
+
+        let inner = the_type.children()[0].kind.as_type().unwrap();
+
+        assert!(matches!(inner, Type::Predefined(_)));
+        assert_eq!(inner.identifier(), "string");
+    }
+
+    #[test]
+    fn parses_template_literal_type() {
+        let code = indoc! {r#"
+            type Example = `varchar(${number})`;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let the_type = symbol.kind.as_type().unwrap();
+        assert!(matches!(the_type, Type::TemplateLiteral(_)));
+
+        println!("{}", the_type.identifier());
+
+        assert_eq!(the_type.identifier(), "`varchar(${number})`");
     }
 
     #[test]
