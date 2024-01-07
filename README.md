@@ -24,7 +24,7 @@ These are the high level features and their status:
 | Functions                   |   ✅   |
 | Basic types                 |   ✅   |
 | Imports / exports           |   ✅   |
-| Classes                     |   🚧   |
+| Classes                     |   ✅   |
 | Interfaces                  |   ✅   |
 | Enums                       |   🚧   |
 | Docstring parsing           |   🚧   |
