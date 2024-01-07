@@ -27,6 +27,9 @@ pub(crate) enum Type {
     Union {
         members: Vec<Symbol>,
     },
+    Intersection {
+        members: Vec<Symbol>,
+    },
     GenericType {
         identifier: String,
         members: Vec<Symbol>,
@@ -38,6 +41,7 @@ pub(crate) enum Type {
         members: Vec<Symbol>,
     },
     TypeOf(String),
+    KeyOf(Box<Symbol>),
     Constructor {
         members: Vec<Symbol>,
     },
@@ -51,12 +55,15 @@ impl Type {
             Type::Identifier(identifier, _) => identifier.as_str(),
             Type::Object { raw_string, .. } => raw_string.as_str(),
             Type::Union { .. } => "union",
+            Type::Intersection { .. } => "intersection",
             Type::GenericType { identifier, .. } => identifier.as_str(),
             Type::Array { .. } => "array",
             Type::Function { .. } => "function",
             Type::Parenthesized(_) => "parenthesized",
             // TODO(Nik): Does this make sense?
+            // Update: nope. It should be recursive, not a string.
             Type::TypeOf(name) => name,
+            Type::KeyOf(symbol) => symbol.identifier(),
             Type::Literal(name) => name,
             Type::Constructor { .. } => "constructor",
         }
@@ -98,6 +105,21 @@ impl Type {
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::KeyOf(nested) => {
+                let meta = json!({});
+
+                Entity {
+                    title: "keyof".to_owned(),
+                    description: String::new(),
+                    kind: "keyof".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: vec![nested.as_entity()],
+                }
+            }
             Type::Constructor { members } => {
                 let meta = json!({});
 
@@ -212,7 +234,22 @@ impl Type {
                     members: members.iter().map(|s| s.as_entity()).collect(),
                 }
             }
-            Type::Union { .. } => {
+            Type::Intersection { members } => {
+                let meta = json!({});
+
+                Entity {
+                    title: "intersection".to_owned(),
+                    description: String::new(),
+                    kind: "intersection".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: members.iter().map(|s| s.as_entity()).collect(),
+                }
+            }
+            Type::Union { members } => {
                 let meta = json!({});
 
                 Entity {
@@ -224,10 +261,7 @@ impl Type {
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
-                    members: vec![
-                        self.union_left().unwrap().as_entity(),
-                        self.union_right().unwrap().as_entity(),
-                    ],
+                    members: members.iter().map(|s| s.as_entity()).collect(),
                 }
             }
             Type::Object { .. } => {
@@ -302,6 +336,7 @@ impl Type {
         }
     }
 
+    #[cfg(test)]
     pub fn union_left(&self) -> Option<&Symbol> {
         match self {
             Type::Union { members } => members.get(0),
@@ -309,9 +344,26 @@ impl Type {
         }
     }
 
+    #[cfg(test)]
     pub fn union_right(&self) -> Option<&Symbol> {
         match self {
             Type::Union { members } => members.get(1),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn intersection_left(&self) -> Option<&Symbol> {
+        match self {
+            Type::Intersection { members } => members.get(0),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn intersection_right(&self) -> Option<&Symbol> {
+        match self {
+            Type::Intersection { members } => members.get(1),
             _ => None,
         }
     }
@@ -356,6 +408,19 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "index_type_query" => {
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+            cursor.goto_next_sibling();
+
+            let inner = parse(&cursor.node(), ctx)?;
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::KeyOf(Box::new(inner))),
+                Source::for_node(node, ctx),
+            ))
+        }
         "constructor_type" => {
             let mut members = vec![];
 
@@ -573,6 +638,30 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             Ok(Symbol::in_context(
                 ctx,
                 SymbolKind::Type(Type::Union { members }),
+                Source::for_node(node, ctx),
+            ))
+        }
+        "intersection_type" => {
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+
+            let mut members = vec![];
+
+            loop {
+                if cursor.node().kind() == "&" || cursor.node().kind() == "comment" {
+                    cursor.goto_next_sibling();
+                    continue;
+                }
+                members.push(parse(&cursor.node(), ctx)?);
+
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Intersection { members }),
                 Source::for_node(node, ctx),
             ))
         }
@@ -794,6 +883,48 @@ mod test {
 
                 let right = type_def.union_right().unwrap().kind.as_type().unwrap();
                 assert_eq!(right, &Type::Predefined("boolean".to_string()));
+            }
+            _ => panic!("Expected a type identifier"),
+        }
+    }
+
+    #[test]
+    fn parses_intersection_type() {
+        let code = indoc! {r#"
+            type Foo = Bar & Baz;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        match type_def {
+            Type::Intersection { .. } => {
+                let left = type_def
+                    .intersection_left()
+                    .unwrap()
+                    .kind
+                    .as_type()
+                    .unwrap();
+                assert_eq!(left, &Type::Identifier("Bar".to_string(), None));
+
+                let right = type_def
+                    .intersection_right()
+                    .unwrap()
+                    .kind
+                    .as_type()
+                    .unwrap();
+                assert_eq!(right, &Type::Identifier("Baz".to_string(), None));
             }
             _ => panic!("Expected a type identifier"),
         }

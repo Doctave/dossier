@@ -475,16 +475,8 @@ mod test {
 
         let constraint_kind = constraint.kind.as_type_constraint().unwrap();
 
-        assert!(constraint_kind.key_of);
         assert!(constraint_kind.extends);
-        assert_eq!(
-            constraint_kind
-                .the_type()
-                .kind
-                .as_type()
-                .unwrap()
-                .identifier(),
-            "B"
-        );
+        let type_kind = constraint_kind.the_type().kind.as_type().unwrap();
+        assert!(matches!(type_kind, &Type::KeyOf(_)));
     }
 }
