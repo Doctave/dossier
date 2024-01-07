@@ -2,7 +2,9 @@ use crate::{
     symbol::{Source, Symbol, SymbolKind},
     types, ParserContext,
 };
-use dossier_core::{tree_sitter::Node, Entity, Result};
+
+use dossier_core::serde_json::json;
+use dossier_core::{tree_sitter::Node, Entity, Identity, Result};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Parameter {
@@ -14,8 +16,27 @@ pub(crate) struct Parameter {
 }
 
 impl Parameter {
-    pub fn as_entity(&self, _source: &Source, _fqn: &str) -> Entity {
-        unimplemented!()
+    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+        let mut meta = json!({});
+        if self.optional {
+            meta["optional"] = true.into();
+        }
+
+        Entity {
+            title: self.identifier.clone(),
+            description: String::new(),
+            kind: "parameter".to_owned(),
+            identity: Identity::FQN(fqn.to_owned()),
+            member_context: None,
+            language: crate::LANGUAGE.to_owned(),
+            source: source.as_entity_source(),
+            meta,
+            members: self
+                .children
+                .iter()
+                .map(|s| s.as_entity())
+                .collect::<Vec<_>>(),
+        }
     }
 
     #[cfg(test)]

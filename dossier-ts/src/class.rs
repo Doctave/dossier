@@ -1,10 +1,11 @@
 use crate::{
+    field,
     helpers::*,
     method,
     symbol::{Source, Symbol, SymbolKind},
-    type_variable, types, ParserContext, field,
+    ParserContext,
 };
-use dossier_core::{tree_sitter::Node, Entity, Result};
+use dossier_core::{serde_json::json, tree_sitter::Node, Entity, Identity, Result};
 
 pub(crate) const NODE_KIND: &str = "class_declaration";
 
@@ -19,8 +20,27 @@ pub(crate) struct Class {
 }
 
 impl Class {
-    pub(crate) fn as_entity(&self, _source: &Source, _fqn: &str) -> Entity {
-        unimplemented!()
+    pub(crate) fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+        let mut meta = json!({});
+        if self.exported {
+            meta["exported"] = true.into();
+        }
+
+        Entity {
+            title: self.identifier.clone(),
+            description: self.documentation.as_deref().unwrap_or_default().to_owned(),
+            kind: "class".to_owned(),
+            identity: Identity::FQN(fqn.to_owned()),
+            member_context: None,
+            language: "ts".to_owned(),
+            source: source.as_entity_source(),
+            meta,
+            members: self
+                .children
+                .iter()
+                .map(|s| s.as_entity())
+                .collect::<Vec<_>>(),
+        }
     }
 
     #[cfg(test)]
@@ -30,7 +50,9 @@ impl Class {
 
     #[cfg(test)]
     pub(crate) fn methods(&self) -> impl Iterator<Item = &Symbol> {
-        self.children.iter().filter(|s| s.kind.as_method().is_some())
+        self.children
+            .iter()
+            .filter(|s| s.kind.as_method().is_some())
     }
 }
 

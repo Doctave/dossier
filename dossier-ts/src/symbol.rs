@@ -280,8 +280,8 @@ impl<'a> Iterator for SymbolIterator<'a> {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Source {
     pub file: PathBuf,
-    pub offset_start_bytes: usize,
-    pub offset_end_bytes: usize,
+    pub start_offset_bytes: usize,
+    pub end_offset_bytes: usize,
 }
 
 impl Source {
@@ -291,8 +291,17 @@ impl Source {
 
         Self {
             file: ctx.file.to_owned(),
-            offset_start_bytes,
-            offset_end_bytes,
+            start_offset_bytes: offset_start_bytes,
+            end_offset_bytes: offset_end_bytes,
+        }
+    }
+
+    pub fn as_entity_source(&self) -> dossier_core::Source {
+        dossier_core::Source {
+            file: self.file.to_owned(),
+            start_offset_bytes: self.start_offset_bytes,
+            end_offset_bytes: self.end_offset_bytes,
+            repository: None,
         }
     }
 }

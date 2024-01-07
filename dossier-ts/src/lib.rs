@@ -325,7 +325,7 @@ mod test {
         assert_eq!(properties.len(), 2);
 
         assert_eq!(properties[0].identifier(), "name");
-        assert!(!properties[0].kind.as_property().unwrap().is_optional);
+        assert!(!properties[0].kind.as_property().unwrap().optional);
         let prop_type = properties[0].kind.as_property().unwrap().the_type();
         assert_eq!(
             prop_type.kind.as_type().unwrap(),
@@ -333,7 +333,7 @@ mod test {
         );
 
         assert_eq!(properties[1].identifier(), "age");
-        assert!(properties[1].kind.as_property().unwrap().is_optional);
+        assert!(properties[1].kind.as_property().unwrap().optional);
         let prop_type = properties[1].kind.as_property().unwrap().the_type();
         assert_eq!(
             prop_type.kind.as_type().unwrap(),
@@ -670,8 +670,13 @@ mod test {
             .unwrap()
             .return_type()
             .unwrap()
-            .kind.as_type().unwrap();
+            .kind
+            .as_type()
+            .unwrap();
 
-        assert_eq!(return_type, &Type::Identifier("Foo".to_owned(), Some("index.ts::identity::Foo".to_owned())));
+        assert_eq!(
+            return_type,
+            &Type::Identifier("Foo".to_owned(), Some("index.ts::identity::Foo".to_owned()))
+        );
     }
 }

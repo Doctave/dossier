@@ -3,7 +3,9 @@ use crate::{
     symbol::{Source, Symbol, SymbolContext, SymbolKind},
     ParserContext,
 };
-use dossier_core::{tree_sitter::Node, Entity, Result};
+
+use dossier_core::serde_json::json;
+use dossier_core::{tree_sitter::Node, Entity, Identity, Result};
 
 type ResolvedTypeFQN = String;
 
@@ -56,11 +58,78 @@ impl Type {
         }
     }
 
-    pub fn as_entity(&self, _source: &Source, _fqn: &str) -> Entity {
-        unimplemented!()
+    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+        match &self {
+            Type::Union { .. } => {
+                let meta = json!({});
+
+                Entity {
+                    title: "union".to_owned(),
+                    description: String::new(),
+                    kind: "union".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: vec![
+                        self.union_left().unwrap().as_entity(),
+                        self.union_right().unwrap().as_entity(),
+                    ],
+                }
+            }
+            Type::Object { .. } => {
+                let meta = json!({});
+
+                Entity {
+                    title: "object".to_owned(),
+                    description: String::new(),
+                    kind: "object".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: self.children().iter().map(|s| s.as_entity()).collect(),
+                }
+            }
+            Type::Predefined(type_name) => {
+                let meta = json!({});
+
+                Entity {
+                    title: type_name.clone(),
+                    description: String::new(),
+                    kind: "predefined_type".to_owned(),
+                    identity: Identity::FQN(format!("builtin::{}", type_name)),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: vec![],
+                }
+            }
+            Type::Identifier(type_name, reference) => {
+                let meta = json!({});
+
+                Entity {
+                    title: type_name.clone(),
+                    description: String::new(),
+                    kind: "predefined_type".to_owned(),
+                    identity: if let Some(fqn) = reference {
+                        Identity::Reference(fqn.to_owned())
+                    } else {
+                        Identity::FQN(fqn.to_owned())
+                    },
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: vec![],
+                }
+            }
+        }
     }
 
-    #[cfg(test)]
     pub fn union_left(&self) -> Option<&Symbol> {
         match self {
             Type::Union { members } => members.get(0),
@@ -68,7 +137,6 @@ impl Type {
         }
     }
 
-    #[cfg(test)]
     pub fn union_right(&self) -> Option<&Symbol> {
         match self {
             Type::Union { members } => members.get(1),
@@ -298,7 +366,7 @@ mod test {
                 assert_eq!(properties.len(), 2);
 
                 assert_eq!(properties[0].kind.as_property().unwrap().identifier, "name");
-                assert!(!properties[0].kind.as_property().unwrap().is_optional);
+                assert!(!properties[0].kind.as_property().unwrap().optional);
                 assert_eq!(
                     properties[0].kind.as_property().unwrap().children[0]
                         .kind
@@ -307,7 +375,7 @@ mod test {
                     &Type::Predefined("string".to_string())
                 );
                 assert_eq!(properties[1].kind.as_property().unwrap().identifier, "age");
-                assert!(properties[1].kind.as_property().unwrap().is_optional);
+                assert!(properties[1].kind.as_property().unwrap().optional);
                 assert_eq!(
                     properties[1].kind.as_property().unwrap().children[0]
                         .kind

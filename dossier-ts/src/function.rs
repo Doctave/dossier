@@ -1,6 +1,6 @@
 use dossier_core::serde_json::json;
 use dossier_core::tree_sitter::{Node, Query, QueryCursor};
-use dossier_core::{helpers::*, Entity, Result};
+use dossier_core::{helpers::*, Entity, Identity, Result};
 use indoc::indoc;
 use lazy_static::lazy_static;
 
@@ -36,21 +36,25 @@ pub(crate) struct Function {
 
 impl Function {
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+        let mut meta = json!({});
+        if self.is_exported {
+            meta["exported"] = true.into();
+        }
+
         Entity {
             title: self.identifier.clone(),
-            description: self.documentation.clone().unwrap_or_default(),
-            kind: "function".to_owned(),
-            identity: dossier_core::Identity::FQN(fqn.to_owned()),
-            members: vec![],
+            description: self.documentation.as_deref().unwrap_or_default().to_owned(),
+            kind: "field".to_owned(),
+            identity: Identity::FQN(fqn.to_owned()),
             member_context: None,
-            language: crate::LANGUAGE.to_owned(),
-            source: dossier_core::Source {
-                file: source.file.to_owned(),
-                start_offset_bytes: source.offset_start_bytes,
-                end_offset_bytes: source.offset_end_bytes,
-                repository: None,
-            },
-            meta: json!({}),
+            language: "ts".to_owned(),
+            source: source.as_entity_source(),
+            meta,
+            members: self
+                .children
+                .iter()
+                .map(|s| s.as_entity())
+                .collect::<Vec<_>>(),
         }
     }
 

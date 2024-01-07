@@ -16,6 +16,11 @@ pub(crate) struct TypeAlias {
 
 impl TypeAlias {
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+        let mut meta = json!({});
+        if self.exported {
+            meta["exported"] = true.into();
+        }
+
         Entity {
             title: self.identifier.clone(),
             description: String::new(),
@@ -26,8 +31,8 @@ impl TypeAlias {
             language: crate::LANGUAGE.to_owned(),
             source: dossier_core::Source {
                 file: source.file.to_owned(),
-                start_offset_bytes: source.offset_start_bytes,
-                end_offset_bytes: source.offset_end_bytes,
+                start_offset_bytes: source.start_offset_bytes,
+                end_offset_bytes: source.end_offset_bytes,
                 repository: None,
             },
             meta: json!({}),
@@ -75,8 +80,8 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         }),
         Source {
             file: ctx.file.to_owned(),
-            offset_start_bytes: node.start_byte(),
-            offset_end_bytes: node.end_byte(),
+            start_offset_bytes: node.start_byte(),
+            end_offset_bytes: node.end_byte(),
         },
     ))
 }

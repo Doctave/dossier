@@ -1,9 +1,10 @@
 use crate::{
+    helpers::*,
     symbol::{Source, Symbol, SymbolKind},
     types, ParserContext,
 };
 use dossier_core::serde_json::json;
-use dossier_core::{tree_sitter::Node, Entity, Result};
+use dossier_core::{tree_sitter::Node, Entity, Identity, Result};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Field {
@@ -14,6 +15,7 @@ pub(crate) struct Field {
     pub readonly: bool,
     pub private: bool,
     pub protected: bool,
+    pub documentation: Option<String>,
 
     /// For now, we're going to just parse a value as a string literal.
     /// This is because it's essentially arbitrary code, and we don't want to
@@ -26,21 +28,34 @@ pub(crate) struct Field {
 
 impl Field {
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+        let mut meta = json!({});
+        if self.readonly {
+            meta["readonly"] = true.into();
+        }
+        if self.protected {
+            meta["protected"] = true.into();
+        }
+        if self.private {
+            meta["private"] = true.into();
+        }
+        if let Some(value) = &self.value {
+            meta["value"] = json!(value);
+        }
+
         Entity {
             title: self.identifier.clone(),
-            description: String::new(),
-            kind: "type_alias".to_owned(),
-            identity: dossier_core::Identity::FQN(fqn.to_owned()),
-            members: vec![],
+            description: self.documentation.as_deref().unwrap_or_default().to_owned(),
+            kind: "field".to_owned(),
+            identity: Identity::FQN(fqn.to_owned()),
             member_context: None,
-            language: crate::LANGUAGE.to_owned(),
-            source: dossier_core::Source {
-                file: source.file.to_owned(),
-                start_offset_bytes: source.offset_start_bytes,
-                end_offset_bytes: source.offset_end_bytes,
-                repository: None,
-            },
-            meta: json!({}),
+            language: "ts".to_owned(),
+            source: source.as_entity_source(),
+            meta,
+            members: self
+                .children
+                .iter()
+                .map(|s| s.as_entity())
+                .collect::<Vec<_>>(),
         }
     }
 
@@ -108,20 +123,23 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         );
     }
 
+    let documentation = find_docs(node, ctx.code).map(process_comment);
+
     Ok(Symbol::in_context(
         ctx,
         SymbolKind::Field(Field {
             identifier,
             children,
             readonly: is_readonly(node),
+            documentation,
             private,
             protected,
             value,
         }),
         Source {
             file: ctx.file.to_owned(),
-            offset_start_bytes: node.start_byte(),
-            offset_end_bytes: node.end_byte(),
+            start_offset_bytes: node.start_byte(),
+            end_offset_bytes: node.end_byte(),
         },
     ))
 }
@@ -138,6 +156,16 @@ fn is_readonly(field_node: &Node) -> bool {
             return false;
         }
     }
+}
+
+fn find_docs<'a>(node: &Node<'a>, code: &'a str) -> Option<&'a str> {
+    if let Some(maybe_comment) = node.prev_sibling() {
+        if maybe_comment.kind() == "comment" {
+            return Some(maybe_comment.utf8_text(code.as_bytes()).unwrap());
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -366,5 +394,36 @@ mod test {
         assert!(field.readonly);
         assert!(!field.protected);
         assert!(!field.private);
+    }
+
+    #[test]
+    fn parses_field_docs() {
+        let code = indoc! {r#"
+            class Context {
+                /**
+                 * Some documentation
+                 */
+                readonly foo: number = 123;
+            }
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+        // Walk one extra step because the docs
+        cursor.goto_next_sibling();
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let field = symbol.kind.as_field().unwrap();
+
+        assert_eq!(field.identifier, "foo");
+        assert_eq!(field.documentation, Some("Some documentation".to_owned()));
     }
 }

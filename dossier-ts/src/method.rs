@@ -5,8 +5,9 @@ use crate::{
     type_variable, types, ParserContext,
 };
 
+use dossier_core::serde_json::json;
 use dossier_core::tree_sitter::{Node, Query, QueryCursor};
-use dossier_core::{helpers::*, Entity, Result};
+use dossier_core::{helpers::*, Entity, Identity, Result};
 
 use indoc::indoc;
 use lazy_static::lazy_static;
@@ -43,8 +44,24 @@ pub(crate) struct Method {
 }
 
 impl Method {
-    pub fn as_entity(&self, _source: &Source, _fqn: &str) -> Entity {
-        unimplemented!()
+    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+        let meta = json!({});
+
+        Entity {
+            title: self.identifier.clone(),
+            description: self.documentation.as_deref().unwrap_or_default().to_owned(),
+            kind: "method".to_owned(),
+            identity: Identity::FQN(fqn.to_owned()),
+            member_context: None,
+            language: "ts".to_owned(),
+            source: source.as_entity_source(),
+            meta,
+            members: self
+                .children
+                .iter()
+                .map(|s| s.as_entity())
+                .collect::<Vec<_>>(),
+        }
     }
 
     #[cfg(test)]

@@ -2,10 +2,12 @@ use crate::{
     symbol::{Source, Symbol, SymbolKind},
     ParserContext,
 };
+
+use dossier_core::serde_json::json;
 use dossier_core::{
     helpers::*,
     tree_sitter::{Node, Query, QueryCursor},
-    Entity, Result,
+    Entity, Identity, Result,
 };
 
 use indoc::indoc;
@@ -29,12 +31,31 @@ pub(crate) struct Property {
     /// Technically will ever only have one child, the type itself, but other
     /// parts of the program will expect a slice of children so this is simpler.
     pub children: Vec<Symbol>,
-    pub is_optional: bool,
+    pub optional: bool,
 }
 
 impl Property {
-    pub fn as_entity(&self, _source: &Source, _fqn: &str) -> Entity {
-        unimplemented!()
+    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+        let mut meta = json!({});
+        if self.optional {
+            meta["optional"] = true.into();
+        }
+
+        Entity {
+            title: self.identifier.clone(),
+            description: String::new(),
+            kind: "property".to_owned(),
+            identity: Identity::FQN(fqn.to_owned()),
+            member_context: None,
+            language: "ts".to_owned(),
+            source: source.as_entity_source(),
+            meta,
+            members: self
+                .children
+                .iter()
+                .map(|s| s.as_entity())
+                .collect::<Vec<_>>(),
+        }
     }
 
     #[cfg(test)]
@@ -70,12 +91,12 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         SymbolKind::Property(Property {
             identifier,
             children: Vec::from([my_type]),
-            is_optional: is_optional(node),
+            optional: is_optional(node),
         }),
         Source {
             file: ctx.file.to_owned(),
-            offset_start_bytes: node.start_byte(),
-            offset_end_bytes: node.end_byte(),
+            start_offset_bytes: node.start_byte(),
+            end_offset_bytes: node.end_byte(),
         },
     ))
 }

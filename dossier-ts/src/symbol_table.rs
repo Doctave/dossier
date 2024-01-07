@@ -387,8 +387,8 @@ mod test {
             }),
             source: Source {
                 file: PathBuf::from("foo.ts"),
-                offset_start_bytes: 0,
-                offset_end_bytes: 0,
+                start_offset_bytes: 0,
+                end_offset_bytes: 0,
             },
             fqn: "foo.ts::foo".to_owned(),
             context: None,
@@ -425,8 +425,8 @@ mod test {
             }),
             source: Source {
                 file: PathBuf::from("foo.ts"),
-                offset_start_bytes: 0,
-                offset_end_bytes: 0,
+                start_offset_bytes: 0,
+                end_offset_bytes: 0,
             },
             fqn: "foo.ts::foo".to_owned(),
             context: None,
@@ -455,8 +455,8 @@ mod test {
             }),
             source: Source {
                 file: PathBuf::from("foo.ts"),
-                offset_start_bytes: 0,
-                offset_end_bytes: 0,
+                start_offset_bytes: 0,
+                end_offset_bytes: 0,
             },
             fqn: "foo.ts::foo".to_owned(),
             context: None,
@@ -485,8 +485,8 @@ mod test {
             }),
             source: Source {
                 file: PathBuf::from("foo.ts"),
-                offset_start_bytes: 0,
-                offset_end_bytes: 0,
+                start_offset_bytes: 0,
+                end_offset_bytes: 0,
             },
             fqn: "foo.ts::foo".to_owned(),
             context: None,
