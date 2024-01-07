@@ -26,6 +26,12 @@ const QUERY_STRING: &str = indoc! {"
             parameters: (formal_parameters) @method_parameters
             return_type: (type_annotation) ? @method_return_type
         ) @method
+        (abstract_method_signature 
+            name: (property_identifier) @method_name
+            type_parameters: (type_parameters) ? @method_type_parameters
+            parameters: (formal_parameters) @method_parameters
+            return_type: (type_annotation) ? @method_return_type
+        ) @method
     ]
     "};
 
@@ -41,11 +47,16 @@ pub(crate) struct Method {
     pub identifier: String,
     pub children: Vec<Symbol>,
     pub documentation: Option<String>,
+    pub is_abstract: bool,
 }
 
 impl Method {
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
-        let meta = json!({});
+        let mut meta = json!({});
+
+        if self.is_abstract {
+            meta["abstract"] = true.into();
+        }
 
         Entity {
             title: self.identifier.clone(),
@@ -93,7 +104,7 @@ impl Method {
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     assert!(matches!(
         node.kind(),
-        "method_signature" | "method_definition"
+        "method_signature" | "method_definition" | "abstract_method_signature"
     ));
 
     let mut children = vec![];
@@ -142,6 +153,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             identifier,
             documentation: docs.map(process_comment),
             children,
+            is_abstract: node.kind() == "abstract_method_signature",
         }),
         Source::for_node(&main_node, ctx),
     ))

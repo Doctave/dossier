@@ -123,6 +123,10 @@ fn handle_node(node: &Node, ctx: &mut ParserContext) -> Result<()> {
             let symbol = class::parse(node, ctx)?;
             ctx.symbol_table.add_symbol(symbol);
         }
+        class::ABSTRACT_NODE_KIND => {
+            let symbol = class::parse(node, ctx)?;
+            ctx.symbol_table.add_symbol(symbol);
+        }
         function::NODE_KIND => {
             let symbol = function::parse(node, ctx)?;
             ctx.symbol_table.add_symbol(symbol);
