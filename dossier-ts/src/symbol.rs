@@ -129,6 +129,7 @@ impl Symbol {
 pub(crate) enum SymbolContext {
     ReturnType,
     Property,
+    Extends,
 }
 
 /// The type of the symbol.

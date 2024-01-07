@@ -1,6 +1,6 @@
 use crate::{
     helpers::*,
-    symbol::{Source, Symbol, SymbolKind},
+    symbol::{Source, Symbol, SymbolContext, SymbolKind},
     type_variable, types, ParserContext,
 };
 use dossier_core::{serde_json::json, tree_sitter::Node, Entity, Identity, Result};
@@ -73,6 +73,13 @@ impl Interface {
             .iter()
             .filter(|s| s.kind.as_method().is_some())
     }
+
+    #[cfg(test)]
+    pub fn extends(&self) -> Option<&Symbol> {
+        self.children
+            .iter()
+            .find(|s| s.context == Some(SymbolContext::Extends))
+    }
 }
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
@@ -103,6 +110,18 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     }
 
     cursor.goto_next_sibling();
+
+    if cursor.node().kind() == "extends_type_clause" {
+        let mut tmp = cursor.node().walk();
+        tmp.goto_first_child();
+        tmp.goto_next_sibling();
+        ctx.push_context(SymbolContext::Extends);
+        let extends = types::parse(&tmp.node(), ctx)?;
+        ctx.pop_context();
+        children.push(extends);
+
+        cursor.goto_next_sibling();
+    }
 
     debug_assert_eq!(cursor.node().kind(), "object_type");
 
@@ -346,6 +365,32 @@ mod test {
         assert_eq!(
             return_type.kind.as_type().unwrap(),
             &Type::Identifier("AliasNode".to_owned(), None)
+        );
+    }
+
+    #[test]
+    fn extends_syntax() {
+        let code = indoc! {r#"
+        export interface Expression<T> extends OperationNodeSource {
+        }
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_interface(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let interface = symbol.kind.as_interface().unwrap();
+
+        let extends = interface.extends().unwrap().kind.as_type().unwrap();
+        assert_eq!(
+            extends,
+            &Type::Identifier("OperationNodeSource".to_owned(), None)
         );
     }
 }
