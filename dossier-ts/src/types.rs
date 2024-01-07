@@ -24,6 +24,9 @@ pub(crate) enum Type {
         raw_string: String,
         properties: Vec<Symbol>,
     },
+    Conditional {
+        members: Vec<Symbol>,
+    },
     Union {
         members: Vec<Symbol>,
     },
@@ -63,6 +66,7 @@ impl Type {
             Type::Predefined(type_name) => type_name.as_str(),
             Type::Identifier(identifier, _) => identifier.as_str(),
             Type::Object { raw_string, .. } => raw_string.as_str(),
+            Type::Conditional { .. } => "conditional",
             Type::Union { .. } => "union",
             Type::Intersection { .. } => "intersection",
             Type::GenericType { identifier, .. } => identifier.as_str(),
@@ -90,6 +94,7 @@ impl Type {
                 properties: fields, ..
             } => fields,
             Type::Union { members } => members,
+            Type::Conditional { members } => members,
             Type::GenericType { members, .. } => members,
             Type::Array { members, .. } => members,
             Type::Function { members, .. } => members,
@@ -108,6 +113,7 @@ impl Type {
                 ..
             } => fields,
             Type::Union { ref mut members } => members,
+            Type::Conditional { ref mut members } => members,
             Type::GenericType {
                 ref mut members, ..
             } => members,
@@ -127,6 +133,27 @@ impl Type {
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::Conditional { members } => {
+                let meta = json!({});
+
+                Entity {
+                    title: format!(
+                        "{} extends {} ? {} : {}",
+                        self.conditional_left().unwrap().identifier(),
+                        self.conditional_right().unwrap().identifier(),
+                        self.conditional_consequence().unwrap().identifier(),
+                        self.conditional_alternative().unwrap().identifier()
+                    ),
+                    description: String::new(),
+                    kind: "template_literal_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: members.iter().map(|s| s.as_entity()).collect(),
+                }
+            }
             Type::Lookup(members) => {
                 let meta = json!({});
 
@@ -409,6 +436,34 @@ impl Type {
         }
     }
 
+    pub fn conditional_left(&self) -> Option<&Symbol> {
+        match self {
+            Type::Conditional { members } => members.get(0),
+            _ => None,
+        }
+    }
+
+    pub fn conditional_right(&self) -> Option<&Symbol> {
+        match self {
+            Type::Conditional { members } => members.get(1),
+            _ => None,
+        }
+    }
+
+    pub fn conditional_consequence(&self) -> Option<&Symbol> {
+        match self {
+            Type::Conditional { members } => members.get(2),
+            _ => None,
+        }
+    }
+
+    pub fn conditional_alternative(&self) -> Option<&Symbol> {
+        match self {
+            Type::Conditional { members } => members.get(3),
+            _ => None,
+        }
+    }
+
     #[cfg(test)]
     pub fn intersection_left(&self) -> Option<&Symbol> {
         match self {
@@ -465,6 +520,30 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "conditional_type" => {
+            let mut members = vec![];
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+
+            loop {
+                if !cursor.node().is_named() {
+                    cursor.goto_next_sibling();
+                    continue;
+                }
+
+                members.push(parse(&cursor.node(), ctx)?);
+
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Conditional { members }),
+                Source::for_node(node, ctx),
+            ))
+        }
         "lookup_type" => {
             let mut cursor = node.walk();
             cursor.goto_first_child();
@@ -1310,6 +1389,66 @@ mod test {
             "Expected a literal, got {:?}",
             base
         );
+    }
+
+    #[test]
+    fn parses_conditional_type() {
+        let code = indoc! {r#"
+            type Example = Dog extends Animal ? number : string;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let conditional = symbol.kind.as_type().unwrap();
+        assert!(matches!(conditional, Type::Conditional { .. }));
+
+        assert_eq!(conditional.children().len(), 4);
+
+        let left = conditional
+            .conditional_left()
+            .unwrap()
+            .kind
+            .as_type()
+            .unwrap();
+        assert_eq!(left.identifier(), "Dog");
+        assert!(matches!(left, Type::Identifier(_, None)));
+
+        let right = conditional
+            .conditional_right()
+            .unwrap()
+            .kind
+            .as_type()
+            .unwrap();
+        assert_eq!(right.identifier(), "Animal");
+        assert!(matches!(right, Type::Identifier(_, None)));
+
+        let right = conditional
+            .conditional_consequence()
+            .unwrap()
+            .kind
+            .as_type()
+            .unwrap();
+        assert_eq!(right.identifier(), "number");
+        assert!(matches!(right, Type::Predefined(_)));
+
+        let right = conditional
+            .conditional_alternative()
+            .unwrap()
+            .kind
+            .as_type()
+            .unwrap();
+        assert_eq!(right.identifier(), "string");
+        assert!(matches!(right, Type::Predefined(_)));
     }
 
     #[test]
