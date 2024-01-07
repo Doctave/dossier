@@ -38,12 +38,14 @@ This is the list of types Dossier currently supports:
 | Generic types          |   ✅   |
 | Union types            |   ✅   |
 | Array types            |   ✅   |
-| Keyof / (Typeof ?)     |   🚧   |
-| Intersection types     |   🚧   |
-| Function types         |   🚧   |
-| Indexed access types   |   🚧   |
-| Conditional types      |   🚧   |
+| Keyof / (Typeof ?)     |   ✅   |
+| Intersection types     |   ✅   |
+| Function types         |   ✅   |
+| Indexed access types   |   ✅   |
+| Conditional types      |   ✅   |
+| Template literal types |   ✅   |
 | Mapped types           |   🚧   |
-| Template literal types |   🚧   |
+| Type types             |   🚧   |
+| Infer type (`infer T`) |   🚧   |
 
 ### Python
