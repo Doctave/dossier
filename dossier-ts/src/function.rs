@@ -297,7 +297,7 @@ mod test {
 
         let bar = params[0].kind.as_parameter().unwrap();
         assert_eq!(bar.identifier, "bar");
-        assert_eq!(bar.optional, false);
+        assert!(!bar.optional);
         assert_eq!(
             bar.parameter_type().unwrap().kind.as_type().unwrap(),
             &Type::Predefined("string".to_owned())
@@ -305,12 +305,12 @@ mod test {
 
         let baz = params[1].kind.as_parameter().unwrap();
         assert_eq!(baz.identifier, "baz");
-        assert_eq!(baz.optional, false);
+        assert!(!baz.optional);
         assert_eq!(baz.parameter_type(), None);
 
         let fizz = params[2].kind.as_parameter().unwrap();
         assert_eq!(fizz.identifier, "fizz");
-        assert_eq!(fizz.optional, true);
+        assert!(fizz.optional);
         assert_eq!(fizz.parameter_type(), None);
     }
 

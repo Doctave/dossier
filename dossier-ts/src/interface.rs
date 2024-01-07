@@ -41,6 +41,19 @@ impl Interface {
             .iter()
             .filter(|s| s.kind.as_property().is_some())
     }
+
+    #[cfg(test)]
+    /// Not actually the properties of the interface, but the properties of the
+    /// object type that the interface is forwarding to.
+    pub fn methods(&self) -> impl Iterator<Item = &Symbol> {
+        self.children
+            .iter()
+            .find(|s| s.kind.as_type().is_some())
+            .unwrap()
+            .children()
+            .iter()
+            .filter(|s| s.kind.as_method().is_some())
+    }
 }
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
@@ -279,5 +292,40 @@ mod test {
 
         let property = interface.properties().collect::<Vec<_>>()[0];
         assert!(generics[0].scope_id < property.scope_id);
+    }
+
+    #[test]
+    fn method_signatures() {
+        let code = indoc! {r#"
+        interface Test {
+            toOperationNode(): AliasNode
+        }
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_interface(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+        let interface = symbol.kind.as_interface().unwrap();
+
+        assert_eq!(interface.methods().count(), 1);
+        let method = interface.methods().next().unwrap();
+
+        assert_eq!(
+            method.kind.as_method().unwrap().identifier,
+            "toOperationNode"
+        );
+
+        let return_type = method.kind.as_method().unwrap().return_type().unwrap();
+
+        assert_eq!(
+            return_type.kind.as_type().unwrap(),
+            &Type::Identifier("AliasNode".to_owned(), None)
+        );
     }
 }

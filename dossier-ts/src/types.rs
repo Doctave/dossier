@@ -1,4 +1,5 @@
 use crate::{
+    method,
     symbol::{Source, Symbol, SymbolContext, SymbolKind},
     ParserContext,
 };
@@ -94,6 +95,7 @@ impl Type {
 }
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
+    println!("Parsing type: {}", node.to_sexp());
     match node.kind() {
         "predefined_type" => {
             let type_name = node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
@@ -124,6 +126,10 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             loop {
                 if cursor.node().kind() == crate::property::NODE_KIND {
                     let symbol = crate::property::parse(&cursor.node(), ctx)?;
+                    properties.push(symbol);
+                }
+                if cursor.node().kind() == method::NODE_KIND {
+                    let symbol = method::parse(&cursor.node(), ctx)?;
                     properties.push(symbol);
                 }
                 if !cursor.goto_next_sibling() {

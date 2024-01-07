@@ -54,6 +54,7 @@ impl Symbol {
         match &self.kind {
             SymbolKind::Function(f) => f.as_entity(&self.source, &self.fqn),
             SymbolKind::Interface(i) => i.as_entity(&self.source, &self.fqn),
+            SymbolKind::Method(m) => m.as_entity(&self.source, &self.fqn),
             SymbolKind::TypeAlias(a) => a.as_entity(&self.source, &self.fqn),
             SymbolKind::Type(t) => t.as_entity(&self.source, &self.fqn),
             SymbolKind::Parameter(p) => p.as_entity(&self.source, &self.fqn),
@@ -71,6 +72,7 @@ impl Symbol {
         match &self.kind {
             SymbolKind::Function(f) => f.children.as_slice(),
             SymbolKind::Interface(i) => i.children.as_slice(),
+            SymbolKind::Method(m) => m.children.as_slice(),
             SymbolKind::TypeAlias(a) => a.children.as_slice(),
             SymbolKind::Type(t) => t.children(),
             SymbolKind::Parameter(p) => p.children.as_slice(),
@@ -84,6 +86,7 @@ impl Symbol {
         match self.kind {
             SymbolKind::Function(ref mut f) => f.children.as_mut_slice(),
             SymbolKind::Interface(ref mut i) => i.children.as_mut_slice(),
+            SymbolKind::Method(ref mut m) => m.children.as_mut_slice(),
             SymbolKind::TypeAlias(ref mut a) => a.children.as_mut_slice(),
             SymbolKind::Type(ref mut t) => t.children_mut(),
             SymbolKind::Parameter(ref mut p) => p.children.as_mut_slice(),
@@ -119,6 +122,7 @@ pub(crate) enum SymbolContext {
 pub(crate) enum SymbolKind {
     Function(crate::function::Function),
     Interface(crate::interface::Interface),
+    Method(crate::method::Method),
     TypeAlias(crate::type_alias::TypeAlias),
     Type(crate::types::Type),
     TypeVariable(crate::type_variable::TypeVariable),
@@ -132,6 +136,7 @@ impl SymbolKind {
         match &self {
             SymbolKind::Function(f) => f.identifier.as_str(),
             SymbolKind::Interface(i) => i.identifier.as_str(),
+            SymbolKind::Method(m) => m.identifier.as_str(),
             SymbolKind::TypeAlias(a) => a.identifier.as_str(),
             SymbolKind::Type(t) => t.identifier(),
             SymbolKind::Parameter(p) => p.identifier.as_str(),
@@ -153,6 +158,14 @@ impl SymbolKind {
     pub fn as_interface(&self) -> Option<&crate::interface::Interface> {
         match self {
             SymbolKind::Interface(f) => Some(f),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn as_method(&self) -> Option<&crate::method::Method> {
+        match self {
+            SymbolKind::Method(m) => Some(m),
             _ => None,
         }
     }

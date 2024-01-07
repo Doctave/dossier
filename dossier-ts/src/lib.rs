@@ -3,6 +3,7 @@ mod function;
 mod helpers;
 mod import;
 mod interface;
+mod method;
 mod parameter;
 mod property;
 mod symbol;
