@@ -125,13 +125,6 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
     let mut children = vec![];
 
-    println!("{}, {}", node.kind(), node.to_sexp());
-
-    println!(
-        "file: {} pos: {}",
-        ctx.file.display(),
-        node.start_position()
-    );
     let mut cursor = QueryCursor::new();
     let method = cursor
         .matches(&QUERY, *node, ctx.code.as_bytes())

@@ -1,7 +1,7 @@
 use crate::{
-    function, method,
+    function, method, parameter,
     symbol::{Source, Symbol, SymbolContext, SymbolKind},
-    ParserContext,
+    type_variable, ParserContext,
 };
 
 use dossier_core::serde_json::json;
@@ -38,6 +38,9 @@ pub(crate) enum Type {
         members: Vec<Symbol>,
     },
     TypeOf(String),
+    Constructor {
+        members: Vec<Symbol>,
+    },
 }
 
 impl Type {
@@ -55,6 +58,7 @@ impl Type {
             // TODO(Nik): Does this make sense?
             Type::TypeOf(name) => name,
             Type::Literal(name) => name,
+            Type::Constructor { .. } => "constructor",
         }
     }
 
@@ -94,6 +98,21 @@ impl Type {
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::Constructor { members } => {
+                let meta = json!({});
+
+                Entity {
+                    title: "constructor".to_owned(),
+                    description: String::new(),
+                    kind: "parenthesized_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: members.iter().map(|s| s.as_entity()).collect(),
+                }
+            }
             Type::Parenthesized(name) => {
                 let meta = json!({});
 
@@ -297,6 +316,26 @@ impl Type {
         }
     }
 
+    #[cfg(test)]
+    pub fn constructor_type_variables(&self) -> impl Iterator<Item = &Symbol> {
+        match self {
+            Type::Constructor { members } => members
+                .iter()
+                .filter(|s| s.kind.as_type_variable().is_some()),
+            _ => panic!("Expected a constructor type"),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn constructor_parameters(&self) -> impl Iterator<Item = &Symbol> {
+        match self {
+            Type::Constructor { members } => {
+                members.iter().filter(|s| s.kind.as_parameter().is_some())
+            }
+            _ => panic!("Expected a constructor type"),
+        }
+    }
+
     pub fn resolvable_identifier(&self) -> Option<&str> {
         match self {
             Type::Identifier(identifier, _referred_fqn) => Some(identifier.as_str()),
@@ -317,6 +356,45 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "constructor_type" => {
+            let mut members = vec![];
+
+            if let Some(params) = node.child_by_field_name("type_parameters") {
+                let mut cursor = params.walk();
+                cursor.goto_first_child();
+
+                loop {
+                    if cursor.node().kind() == crate::type_variable::NODE_KIND {
+                        members.push(type_variable::parse(&cursor.node(), ctx)?);
+                    }
+
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+
+            if let Some(params) = node.child_by_field_name("parameters") {
+                let mut cursor = params.walk();
+                cursor.goto_first_child();
+
+                loop {
+                    if crate::parameter::NODE_KINDS.contains(&cursor.node().kind()) {
+                        members.push(parameter::parse(&cursor.node(), ctx)?);
+                    }
+
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Constructor { members }),
+                Source::for_node(node, ctx),
+            ))
+        }
         "parenthesized_type" => {
             let mut cursor = node.walk();
             cursor.goto_first_child();
@@ -881,6 +959,41 @@ mod test {
 
         let child = type_def.children()[0].kind.as_type().unwrap();
         assert!(matches!(child, &Type::Predefined(_)));
+    }
+
+    #[test]
+    fn parses_constructor_type() {
+        let code = indoc! {r#"
+        type PostgresCursorConstructor = new <T>(
+          sql: string,
+          parameters: unknown[]
+        ) => PostgresCursor<T>
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        assert!(matches!(type_def, &Type::Constructor { .. }));
+
+        let type_variable = type_def.constructor_type_variables().next().unwrap();
+        assert_eq!(
+            type_variable.kind.as_type_variable().unwrap().identifier,
+            "T"
+        );
+
+        let parameters = type_def.constructor_parameters().collect::<Vec<_>>();
+        assert_eq!(parameters.len(), 2);
     }
 
     #[test]

@@ -6,6 +6,8 @@ use crate::{
 use dossier_core::serde_json::json;
 use dossier_core::{tree_sitter::Node, Entity, Identity, Result};
 
+pub(crate) const NODE_KINDS: &[&str] = &["required_parameter", "optional_parameter"];
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Parameter {
     pub identifier: String,
@@ -47,10 +49,7 @@ impl Parameter {
 }
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
-    assert!(matches!(
-        node.kind(),
-        "required_parameter" | "optional_parameter"
-    ));
+    assert!(NODE_KINDS.contains(&node.kind()));
 
     let mut children = vec![];
     let mut cursor = node.walk();

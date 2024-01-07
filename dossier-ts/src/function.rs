@@ -440,4 +440,51 @@ mod test {
             return_type.scope_id
         );
     }
+
+    #[test]
+    fn generics_with_key_of_constraint() {
+        let code = indoc! {r#"
+        function example<A extends keyof B>() {}
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_function(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let function = symbol.kind.as_function().unwrap();
+        assert_eq!(function.identifier, "example");
+
+        // check the type variable
+        assert_eq!(function.type_variables().count(), 1);
+
+        let type_variable = function.type_variables().collect::<Vec<_>>()[0];
+        assert!(symbol.scope_id < type_variable.scope_id);
+
+        let type_variable_kind = type_variable.kind.as_type_variable().unwrap();
+        assert_eq!(type_variable_kind.identifier, "A");
+        assert_eq!(type_variable_kind.constraints().count(), 1);
+
+        // check the type variable's constraint
+        let constraint = type_variable_kind.constraints().next().unwrap();
+
+        let constraint_kind = constraint.kind.as_type_constraint().unwrap();
+
+        assert!(constraint_kind.key_of);
+        assert!(constraint_kind.extends);
+        assert_eq!(
+            constraint_kind
+                .the_type()
+                .kind
+                .as_type()
+                .unwrap()
+                .identifier(),
+            "B"
+        );
+    }
 }

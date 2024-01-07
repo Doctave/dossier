@@ -12,6 +12,7 @@ pub(crate) const NODE_KIND: &str = "constraint";
 pub(crate) struct TypeConstraint {
     pub identifier: String,
     pub extends: bool,
+    pub key_of: bool,
     pub children: Vec<Symbol>,
 }
 
@@ -49,11 +50,18 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     assert_eq!(node.kind(), NODE_KIND);
 
     let mut extends = false;
+    let mut key_of = false;
     let mut cursor = node.walk();
     cursor.goto_first_child();
 
     if cursor.node().kind() == "extends" {
         extends = true;
+        cursor.goto_next_sibling();
+    }
+
+    if cursor.node().kind() == "index_type_query" {
+        key_of = true;
+        cursor.goto_first_child();
         cursor.goto_next_sibling();
     }
 
@@ -64,6 +72,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         SymbolKind::TypeConstraint(TypeConstraint {
             identifier: the_type.fqn.clone(),
             extends,
+            key_of,
             children: vec![the_type],
         }),
         Source::for_node(node, ctx),
