@@ -1,13 +1,20 @@
 use std::path::PathBuf;
 
 use dossier_core::Entity;
+use std::sync::atomic::AtomicUsize;
 use tree_sitter::Node;
 
 use crate::{symbol_table::ScopeID, ParserContext};
 
+static SYMBOL_ID: AtomicUsize = AtomicUsize::new(1);
+
+pub(crate) const UNUSED_SYMBOL_ID: usize = 0;
+pub(crate) type SymbolID = usize;
+
 #[derive(Debug, Clone, PartialEq)]
 /// A symbol we've discovered in the source code.
 pub(crate) struct Symbol {
+    pub id: usize,
     pub kind: SymbolKind,
     pub source: Source,
     pub fqn: String,
@@ -27,6 +34,7 @@ impl Symbol {
         let context = ctx.symbol_context().cloned();
 
         Self {
+            id: SYMBOL_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
             kind,
             source,
             fqn,
@@ -105,6 +113,7 @@ impl Symbol {
     pub fn resolvable_identifier(&self) -> Option<&str> {
         match &self.kind {
             SymbolKind::Type(t) => t.resolvable_identifier(),
+            SymbolKind::TypeAlias(t) => Some(t.identifier.as_str()),
             _ => None,
         }
     }

@@ -384,7 +384,11 @@ mod test {
 
         let mut table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
 
+        println!("{:#?}", table.all_symbols().collect::<Vec<_>>());
+
         table.resolve_types();
+
+        println!("{:#?}", table.all_symbols().collect::<Vec<_>>());
 
         let symbols = table.all_symbols().collect::<Vec<_>>();
         assert_eq!(symbols.len(), 2);
@@ -665,8 +669,9 @@ mod test {
             .as_function()
             .unwrap()
             .return_type()
-            .unwrap();
+            .unwrap()
+            .kind.as_type().unwrap();
 
-        assert_eq!(return_type.fqn, "index.ts::identity::Foo");
+        assert_eq!(return_type, &Type::Identifier("Foo".to_owned(), Some("index.ts::identity::Foo".to_owned())));
     }
 }

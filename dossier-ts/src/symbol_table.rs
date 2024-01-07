@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicUsize;
 
 use crate::import::Import;
-use crate::symbol::Symbol;
+use crate::symbol::{self, Symbol, SymbolID, SymbolIterator};
 
 static SCOPE_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -53,7 +53,12 @@ impl SymbolTable {
         }
     }
 
-    pub fn lookup(&self, identifier: &str, scope_id: ScopeID) -> Option<&Symbol> {
+    pub fn lookup(
+        &self,
+        identifier: &str,
+        scope_id: ScopeID,
+        symbol_id: SymbolID,
+    ) -> Option<&Symbol> {
         let mut parent_scopes = vec![];
         let mut scope_id = Some(scope_id);
 
@@ -66,10 +71,10 @@ impl SymbolTable {
                 .and_then(|s| s.parent);
         }
 
-        self.symbols
-            .iter()
+        SymbolIterator::new(&self.symbols)
             .filter(|sym| sym.identifier() == identifier)
             .filter(|sym| parent_scopes.contains(&sym.scope_id))
+            .filter(|sym| sym.id != symbol_id)
             .max_by(|sym, other| sym.scope_id.cmp(&other.scope_id))
     }
 
@@ -88,7 +93,7 @@ impl SymbolTable {
 
         self.symbols
             .iter_mut()
-            .filter(|sym| sym.identifier() == identifier)
+            .filter(|sym| sym.resolvable_identifier() == Some(identifier))
             .filter(|sym| parent_scopes.contains(&sym.scope_id))
             .max_by(|sym, other| sym.scope_id.cmp(&other.scope_id))
     }
@@ -135,7 +140,7 @@ impl SymbolTable {
         // - The chain of indexes to the child symbols which needs resolving
         // - The identifier in the symbol that needs resolving
         // - The scope of the symbol that needs resolving
-        let mut actions: Vec<(VecDeque<usize>, String, ScopeID)> = vec![];
+        let mut actions: Vec<(VecDeque<usize>, String, ScopeID, SymbolID)> = vec![];
 
         for (id, symbol) in self.symbols.iter().enumerate() {
             let mut chain = VecDeque::from([id]);
@@ -148,8 +153,8 @@ impl SymbolTable {
         //
         // Look up the identifier from its scope. If we find a match, we add it to the resolutions,
         // which is an identical list as above, except the last element is the resolved FQN of the symbol
-        for (child_indexes, identifier, scope_id) in actions {
-            if let Some(matching_symbol) = self.lookup(&identifier, scope_id) {
+        for (child_indexes, identifier, scope_id, symbol_id) in actions {
+            if let Some(matching_symbol) = self.lookup(&identifier, scope_id, symbol_id) {
                 resolutions.push((child_indexes, matching_symbol.fqn.clone()));
             }
         }
@@ -174,7 +179,7 @@ impl SymbolTable {
         // - The chain of indexes to the child symbols which needs resolving
         // - The identifier in the symbol that needs resolving
         // - The scope of the symbol that needs resolving
-        let mut actions: Vec<(VecDeque<usize>, String, ScopeID)> = vec![];
+        let mut actions: Vec<(VecDeque<usize>, String, ScopeID, SymbolID)> = vec![];
 
         for (id, symbol) in self.symbols.iter().enumerate() {
             let mut chain = VecDeque::from([id]);
@@ -188,14 +193,16 @@ impl SymbolTable {
         //
         // Look up the identifier from its scope. If we find a match, we add it to the resolutions,
         // which is an identical list as above, except the last element is the resolved FQN of the symbol
-        for (child_indexes, identifier, scope_id) in actions {
+        for (child_indexes, identifier, scope_id, _) in actions {
             if let Some(import) = self.lookup_import(&identifier, scope_id) {
                 if let Some(imported_table) =
                     all_tables.find(|t| self.matches_import_path(&t.file, import))
                 {
-                    if let Some(matching_symbol) =
-                        imported_table.lookup(&identifier, imported_table.root_scope().id)
-                    {
+                    if let Some(matching_symbol) = imported_table.lookup(
+                        &identifier,
+                        imported_table.root_scope().id,
+                        symbol::UNUSED_SYMBOL_ID,
+                    ) {
                         if matching_symbol.is_exported() {
                             resolutions.push((child_indexes, matching_symbol.fqn.clone()));
                         }
@@ -218,13 +225,14 @@ impl SymbolTable {
     fn collect_actions_recursive(
         symbol: &Symbol,
         chain: &mut VecDeque<usize>,
-        actions: &mut Vec<(VecDeque<usize>, String, ScopeID)>,
+        actions: &mut Vec<(VecDeque<usize>, String, ScopeID, SymbolID)>,
     ) {
         if let Some(resolvable_identifier) = symbol.resolvable_identifier() {
             actions.push((
                 chain.clone(),
                 resolvable_identifier.to_owned(),
                 symbol.scope_id,
+                symbol.id,
             ));
         }
 
@@ -365,6 +373,7 @@ mod test {
     fn symbol_table_lookup() {
         let mut table = SymbolTable::new("foo.ts");
         table.add_symbol(Symbol {
+            id: 1,
             kind: SymbolKind::Function(crate::function::Function {
                 identifier: "foo".to_owned(),
                 documentation: None,
@@ -381,7 +390,9 @@ mod test {
             scope_id: table.current_scope().id,
         });
 
-        let symbol = table.lookup("foo", table.root_scope().id).unwrap();
+        let symbol = table
+            .lookup("foo", table.root_scope().id, symbol::UNUSED_SYMBOL_ID)
+            .unwrap();
 
         match &symbol {
             Symbol {
@@ -395,12 +406,42 @@ mod test {
     }
 
     #[test]
+    fn symbol_table_lookup_ignores_symbols_with_the_same_id() {
+        let id = 123;
+
+        let mut table = SymbolTable::new("foo.ts");
+        table.add_symbol(Symbol {
+            id,
+            kind: SymbolKind::Function(crate::function::Function {
+                identifier: "foo".to_owned(),
+                documentation: None,
+                is_exported: false,
+                children: vec![],
+            }),
+            source: Source {
+                file: PathBuf::from("foo.ts"),
+                offset_start_bytes: 0,
+                offset_end_bytes: 0,
+            },
+            fqn: "foo.ts::foo".to_owned(),
+            context: None,
+            scope_id: table.current_scope().id,
+        });
+
+        assert_eq!(
+            table.lookup("foo", table.root_scope().id, id),
+            None
+        );
+    }
+
+    #[test]
     fn symbol_table_lookup_fails_if_no_match_in_a_parent_scope() {
         let mut table = SymbolTable::new("foo.ts");
 
         table.push_scope();
 
         table.add_symbol(Symbol {
+            id: 1,
             kind: SymbolKind::Function(crate::function::Function {
                 identifier: "foo".to_owned(),
                 documentation: None,
@@ -419,7 +460,10 @@ mod test {
 
         table.pop_scope();
 
-        assert_eq!(table.lookup("foo", table.root_scope().id), None);
+        assert_eq!(
+            table.lookup("foo", table.root_scope().id, symbol::UNUSED_SYMBOL_ID),
+            None
+        );
     }
 
     #[test]
@@ -427,6 +471,7 @@ mod test {
         let mut table = SymbolTable::new("foo.ts");
 
         table.add_symbol(Symbol {
+            id: 1,
             kind: SymbolKind::Function(crate::function::Function {
                 identifier: "foo".to_owned(),
                 documentation: None,
@@ -447,7 +492,9 @@ mod test {
         table.push_scope();
         let nested_scope_id = table.push_scope();
 
-        assert!(table.lookup("foo", nested_scope_id).is_some());
+        assert!(table
+            .lookup("foo", nested_scope_id, symbol::UNUSED_SYMBOL_ID)
+            .is_some());
     }
 
     #[test]
