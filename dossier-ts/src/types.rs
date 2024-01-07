@@ -35,6 +35,7 @@ pub(crate) enum Type {
     Function {
         members: Vec<Symbol>,
     },
+    TypeOf(String),
 }
 
 impl Type {
@@ -48,6 +49,8 @@ impl Type {
             Type::GenericType { identifier, .. } => identifier.as_str(),
             Type::Array { .. } => "array",
             Type::Function { .. } => "function",
+            // TODO(Nik): Does this make sense?
+            Type::TypeOf(name) => name,
         }
     }
 
@@ -86,6 +89,21 @@ impl Type {
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::TypeOf(name) => {
+                let meta = json!({});
+
+                Entity {
+                    title: format!("typeof {}", name),
+                    description: String::new(),
+                    kind: "typeof".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: vec![],
+                }
+            }
             Type::Function { members } => {
                 let meta = json!({});
 
@@ -258,6 +276,22 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "type_query" => {
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+            cursor.goto_next_sibling();
+            let identifier = cursor
+                .node()
+                .utf8_text(ctx.code.as_bytes())
+                .unwrap()
+                .to_owned();
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::TypeOf(identifier)),
+                Source::for_node(node, ctx),
+            ))
+        }
         "function_type" => {
             let mut members = vec![];
 
@@ -374,29 +408,33 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             let mut cursor = node.walk();
             cursor.goto_first_child();
 
-            let left = parse(&cursor.node(), ctx)?;
+            let mut members = vec![];
 
-            cursor.goto_next_sibling();
-            debug_assert_eq!(cursor.node().kind(), "|");
-            cursor.goto_next_sibling();
+            loop {
+                if cursor.node().kind() == "|" {
+                    cursor.goto_next_sibling();
+                    continue;
+                }
+                members.push(parse(&cursor.node(), ctx)?);
 
-            let right = parse(&cursor.node(), ctx)?;
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
 
             Ok(Symbol::in_context(
                 ctx,
-                SymbolKind::Type(Type::Union {
-                    members: vec![left, right],
-                }),
+                SymbolKind::Type(Type::Union { members }),
                 Source::for_node(node, ctx),
             ))
         }
         _ => panic!(
-            "Unhandled type kind: {} | {} | {} | file:{} | offset:{}",
+            "Unhandled type kind: {} | {} | {} | file:{} | pos:{}",
             node.kind(),
             node.utf8_text(ctx.code.as_bytes()).unwrap(),
             node.to_sexp(),
             ctx.file.display(),
-            node.start_byte()
+            node.start_position()
         ),
     }
 }
@@ -697,6 +735,57 @@ mod test {
         assert_eq!(param.kind.as_parameter().unwrap().identifier, "a");
 
         let return_type = type_def.function_return_type().unwrap();
-        assert_eq!(return_type.kind.as_type().unwrap(), &Type::Predefined("void".to_owned()));
+        assert_eq!(
+            return_type.kind.as_type().unwrap(),
+            &Type::Predefined("void".to_owned())
+        );
+    }
+
+    #[test]
+    fn parses_typeof() {
+        let code = indoc! {r#"
+            type Request = typeof TediousRequest
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        assert_eq!(type_def, &Type::TypeOf("TediousRequest".to_owned()));
+    }
+
+    #[test]
+    fn bug_unbalanced_union() {
+        let code = indoc! {r#"
+            type Example = | number
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        assert!(matches!(type_def, Type::Union { .. }));
+
+        assert_eq!(type_def.children().len(), 1);
     }
 }
