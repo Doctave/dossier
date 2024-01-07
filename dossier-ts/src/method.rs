@@ -15,19 +15,19 @@ use lazy_static::lazy_static;
 const QUERY_STRING: &str = indoc! {"
     [
         (method_definition 
-            name: (property_identifier) @method_name
+            name: [(property_identifier) (private_property_identifier) (computed_property_name)] @method_name
             type_parameters: (type_parameters) ? @method_type_parameters
             parameters: (formal_parameters) @method_parameters
             return_type: (type_annotation) ? @method_return_type
         ) @method
         (method_signature 
-            name: (property_identifier) @method_name
+            name: [(property_identifier) (private_property_identifier) (computed_property_name)] @method_name
             type_parameters: (type_parameters) ? @method_type_parameters
             parameters: (formal_parameters) @method_parameters
             return_type: (type_annotation) ? @method_return_type
         ) @method
         (abstract_method_signature 
-            name: (property_identifier) @method_name
+            name: [(property_identifier) (private_property_identifier) (computed_property_name)] @method_name
             type_parameters: (type_parameters) ? @method_type_parameters
             parameters: (formal_parameters) @method_parameters
             return_type: (type_annotation) ? @method_return_type
@@ -43,11 +43,27 @@ lazy_static! {
 pub(crate) const NODE_KIND: &str = "method_signature";
 
 #[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Identifier {
+    Computed(String),
+    Name(String),
+}
+
+impl Identifier {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Identifier::Computed(s) => s.as_str(),
+            Identifier::Name(s) => s.as_str(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Method {
-    pub identifier: String,
+    pub identifier: Identifier,
     pub children: Vec<Symbol>,
     pub documentation: Option<String>,
     pub is_abstract: bool,
+    pub is_private: bool,
 }
 
 impl Method {
@@ -59,7 +75,7 @@ impl Method {
         }
 
         Entity {
-            title: self.identifier.clone(),
+            title: self.identifier.as_str().to_owned(),
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "method".to_owned(),
             identity: Identity::FQN(fqn.to_owned()),
@@ -109,6 +125,13 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
     let mut children = vec![];
 
+    println!("{}, {}", node.kind(), node.to_sexp());
+
+    println!(
+        "file: {} pos: {}",
+        ctx.file.display(),
+        node.start_position()
+    );
     let mut cursor = QueryCursor::new();
     let method = cursor
         .matches(&QUERY, *node, ctx.code.as_bytes())
@@ -121,10 +144,17 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     let parameters_node = node_for_capture("method_parameters", method.captures, &QUERY);
     let return_type_node = node_for_capture("method_return_type", method.captures, &QUERY);
 
-    let identifier = name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
+    let identifier = if name_node.kind() == "computed_property_name" {
+        let mut cursor = name_node.walk();
+        cursor.goto_first_child();
+        cursor.goto_next_sibling();
+        Identifier::Computed(cursor.node().utf8_text(ctx.code.as_bytes()).unwrap().to_owned())
+    } else {
+        Identifier::Name(name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned())
+    };
 
     ctx.push_scope();
-    ctx.push_fqn(&identifier);
+    ctx.push_fqn(identifier.as_str());
 
     if let Some(type_parameters) = type_param_node {
         parse_type_parameters(&type_parameters, &mut children, ctx);
@@ -154,6 +184,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             documentation: docs.map(process_comment),
             children,
             is_abstract: node.kind() == "abstract_method_signature",
+            is_private: name_node.kind() == "private_property_identifier",
         }),
         Source::for_node(&main_node, ctx),
     ))

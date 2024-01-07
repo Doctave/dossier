@@ -319,6 +319,37 @@ mod test {
     }
 
     #[test]
+    fn readonly_parameter() {
+        let code = indoc! {r#"
+        function foo(bar: readonly string) {}
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_function(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let function = symbol.kind.as_function().unwrap();
+
+        let params = function.parameters().collect::<Vec<_>>();
+        assert_eq!(params.len(), 1);
+
+        let bar = params[0].kind.as_parameter().unwrap();
+        assert_eq!(bar.identifier, "bar");
+        assert!(bar.readonly);
+        assert!(!bar.optional);
+        assert_eq!(
+            bar.parameter_type().unwrap().kind.as_type().unwrap(),
+            &Type::Predefined("string".to_owned())
+        );
+    }
+
+    #[test]
     fn generics() {
         let code = indoc! {r#"
         function identity<Type>(arg: Type): Type {}

@@ -13,6 +13,7 @@ pub(crate) struct Parameter {
     /// parts of the program will expect a slice of children so this is simpler.
     pub children: Vec<Symbol>,
     pub optional: bool,
+    pub readonly: bool,
 }
 
 impl Parameter {
@@ -56,6 +57,8 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     cursor.goto_first_child();
 
     let mut optional = false;
+    let mut readonly = false;
+
     let identifier = cursor
         .node()
         .utf8_text(ctx.code.as_bytes())
@@ -70,6 +73,12 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     if cursor.node().kind() == "type_annotation" {
         cursor.goto_first_child();
         cursor.goto_next_sibling();
+
+        if cursor.node().kind() == "readonly_type" {
+            readonly = true;
+            cursor.goto_first_child();
+            cursor.goto_next_sibling();
+        }
         children.push(types::parse(&cursor.node(), ctx)?);
     }
 
@@ -79,6 +88,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             identifier,
             children,
             optional,
+            readonly,
         }),
         Source::for_node(node, ctx),
     ))

@@ -164,7 +164,6 @@ fn is_exported(node: &Node) -> bool {
 
 #[cfg(test)]
 mod test {
-    use crate::types::Type;
     use dossier_core::tree_sitter::Parser;
     use dossier_core::tree_sitter::TreeCursor;
     use indoc::indoc;
@@ -224,8 +223,6 @@ mod test {
         assert_eq!(symbol.kind.as_class().unwrap().identifier, "Base");
         assert!(symbol.kind.as_class().unwrap().is_abstract);
 
-        println!("{:#?}", symbol);
-
         let abstract_method = symbol
             .kind
             .as_class()
@@ -236,5 +233,85 @@ mod test {
             .unwrap();
 
         assert!(abstract_method.kind.as_method().unwrap().is_abstract);
+    }
+
+    #[test]
+    fn private_method_identifier() {
+        let code = indoc! {r#"
+        class Example {
+          #privateMethod() {}
+        }
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_class(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        // Parse successfully
+        let _symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let private_method = symbol
+            .kind
+            .as_class()
+            .unwrap()
+            .children
+            .iter()
+            .find(|s| s.kind.as_method().is_some())
+            .unwrap();
+
+        assert!(private_method.kind.as_method().unwrap().is_private);
+    }
+
+    #[test]
+    fn computed_method_identifier() {
+        let code = indoc! {r#"
+        class Example {
+          [SOME_IDENTIFIER]() {}
+        }
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_class(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        // Parse successfully
+        let _symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let method = symbol
+            .kind
+            .as_class()
+            .unwrap()
+            .children
+            .iter()
+            .find(|s| s.kind.as_method().is_some())
+            .unwrap();
+
+        let identifier = &method.kind.as_method().unwrap().identifier;
+        assert_eq!(
+            identifier,
+            &crate::method::Identifier::Computed("SOME_IDENTIFIER".into())
+        );
     }
 }

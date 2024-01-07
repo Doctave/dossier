@@ -12,6 +12,8 @@ type ResolvedTypeFQN = String;
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Type {
     Predefined(String),
+    Parenthesized(Vec<Symbol>),
+    Literal(String),
     /// This is the case where we have a type alias, and we need to resolve it.
     ///
     /// When the type has been resolved, the second element in the tuple will
@@ -49,8 +51,10 @@ impl Type {
             Type::GenericType { identifier, .. } => identifier.as_str(),
             Type::Array { .. } => "array",
             Type::Function { .. } => "function",
+            Type::Parenthesized(_) => "parenthesized",
             // TODO(Nik): Does this make sense?
             Type::TypeOf(name) => name,
+            Type::Literal(name) => name,
         }
     }
 
@@ -63,6 +67,7 @@ impl Type {
             Type::GenericType { members, .. } => members,
             Type::Array { members, .. } => members,
             Type::Function { members, .. } => members,
+            Type::Parenthesized(nested) => nested,
             _ => &[],
         }
     }
@@ -89,6 +94,42 @@ impl Type {
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::Parenthesized(name) => {
+                let meta = json!({});
+
+                let title = if let Some(inner) = name.first() {
+                    format!("({})", inner.identifier())
+                } else {
+                    String::from("()")
+                };
+
+                Entity {
+                    title,
+                    description: String::new(),
+                    kind: "parenthesized_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: vec![],
+                }
+            }
+            Type::Literal(name) => {
+                let meta = json!({});
+
+                Entity {
+                    title: format!("\"{}\"", name),
+                    description: String::new(),
+                    kind: "literal".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: vec![],
+                }
+            }
             Type::TypeOf(name) => {
                 let meta = json!({});
 
@@ -276,6 +317,35 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "parenthesized_type" => {
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+            cursor.goto_next_sibling();
+
+            let inner = parse(&cursor.node(), ctx)?;
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Parenthesized(vec![inner])),
+                Source::for_node(node, ctx),
+            ))
+        }
+        "literal_type" => {
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+
+            let literal = cursor
+                .node()
+                .utf8_text(ctx.code.as_bytes())
+                .unwrap()
+                .to_owned();
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Literal(literal)),
+                Source::for_node(node, ctx),
+            ))
+        }
         "type_query" => {
             let mut cursor = node.walk();
             cursor.goto_first_child();
@@ -411,7 +481,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             let mut members = vec![];
 
             loop {
-                if cursor.node().kind() == "|" {
+                if cursor.node().kind() == "|" || cursor.node().kind() == "comment" {
                     cursor.goto_next_sibling();
                     continue;
                 }
@@ -765,6 +835,55 @@ mod test {
     }
 
     #[test]
+    fn parses_literal_type() {
+        let code = indoc! {r#"
+            type Request = "FOO";
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        assert_eq!(type_def, &Type::Literal("\"FOO\"".to_owned()));
+    }
+
+    #[test]
+    fn parses_parenthesized_type() {
+        let code = indoc! {r#"
+            type Foo = (string);
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let type_def = symbol.kind.as_type().unwrap();
+
+        assert!(matches!(type_def, &Type::Parenthesized(_)));
+
+        let child = type_def.children()[0].kind.as_type().unwrap();
+        assert!(matches!(child, &Type::Predefined(_)));
+    }
+
+    #[test]
     fn bug_unbalanced_union() {
         let code = indoc! {r#"
             type Example = | number
@@ -787,5 +906,27 @@ mod test {
         assert!(matches!(type_def, Type::Union { .. }));
 
         assert_eq!(type_def.children().len(), 1);
+    }
+
+    #[test]
+    fn bug_comment_between_union() {
+        let code = indoc! {r#"
+            type Example =
+            | number
+            // This is a comment
+            | string
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse successfully
+        let _symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
     }
 }

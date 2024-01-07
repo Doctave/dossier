@@ -3,7 +3,7 @@ use crate::{
     symbol::{Source, Symbol, SymbolKind},
     type_variable, types, ParserContext,
 };
-use dossier_core::{tree_sitter::Node, serde_json::json, Entity, Identity, Result};
+use dossier_core::{serde_json::json, tree_sitter::Node, Entity, Identity, Result};
 
 pub(crate) const NODE_KIND: &str = "interface_declaration";
 
@@ -178,6 +178,7 @@ fn parse_type_parameters(
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::method;
     use crate::types::Type;
     use dossier_core::tree_sitter::Parser;
     use dossier_core::tree_sitter::TreeCursor;
@@ -337,7 +338,7 @@ mod test {
 
         assert_eq!(
             method.kind.as_method().unwrap().identifier,
-            "toOperationNode"
+            method::Identifier::Name("toOperationNode".to_string())
         );
 
         let return_type = method.kind.as_method().unwrap().return_type().unwrap();
