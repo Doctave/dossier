@@ -76,7 +76,7 @@ impl Method {
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     assert!(matches!(
         node.kind(),
-        "method_signature" | "method_declaration"
+        "method_signature" | "method_definition"
     ));
 
     let mut children = vec![];

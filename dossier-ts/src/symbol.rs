@@ -52,7 +52,9 @@ impl Symbol {
 
     pub fn as_entity(&self) -> Entity {
         match &self.kind {
+            SymbolKind::Class(c) => c.as_entity(&self.source, &self.fqn),
             SymbolKind::Function(f) => f.as_entity(&self.source, &self.fqn),
+            SymbolKind::Field(f) => f.as_entity(&self.source, &self.fqn),
             SymbolKind::Interface(i) => i.as_entity(&self.source, &self.fqn),
             SymbolKind::Method(m) => m.as_entity(&self.source, &self.fqn),
             SymbolKind::TypeAlias(a) => a.as_entity(&self.source, &self.fqn),
@@ -70,7 +72,9 @@ impl Symbol {
 
     pub fn children(&self) -> &[Symbol] {
         match &self.kind {
+            SymbolKind::Class(c) => c.children.as_slice(),
             SymbolKind::Function(f) => f.children.as_slice(),
+            SymbolKind::Field(f) => f.children.as_slice(),
             SymbolKind::Interface(i) => i.children.as_slice(),
             SymbolKind::Method(m) => m.children.as_slice(),
             SymbolKind::TypeAlias(a) => a.children.as_slice(),
@@ -84,7 +88,9 @@ impl Symbol {
 
     pub fn children_mut(&mut self) -> &mut [Symbol] {
         match self.kind {
+            SymbolKind::Class(ref mut c) => c.children.as_mut_slice(),
             SymbolKind::Function(ref mut f) => f.children.as_mut_slice(),
+            SymbolKind::Field(ref mut f) => f.children.as_mut_slice(),
             SymbolKind::Interface(ref mut i) => i.children.as_mut_slice(),
             SymbolKind::Method(ref mut m) => m.children.as_mut_slice(),
             SymbolKind::TypeAlias(ref mut a) => a.children.as_mut_slice(),
@@ -120,6 +126,8 @@ pub(crate) enum SymbolContext {
 /// Contains all the metadata associated with that type of symbol
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum SymbolKind {
+    Class(crate::class::Class),
+    Field(crate::field::Field),
     Function(crate::function::Function),
     Interface(crate::interface::Interface),
     Method(crate::method::Method),
@@ -134,7 +142,9 @@ pub(crate) enum SymbolKind {
 impl SymbolKind {
     pub fn identifier(&self) -> &str {
         match &self {
+            SymbolKind::Class(c) => c.identifier.as_str(),
             SymbolKind::Function(f) => f.identifier.as_str(),
+            SymbolKind::Field(f) => f.identifier.as_str(),
             SymbolKind::Interface(i) => i.identifier.as_str(),
             SymbolKind::Method(m) => m.identifier.as_str(),
             SymbolKind::TypeAlias(a) => a.identifier.as_str(),
@@ -143,6 +153,22 @@ impl SymbolKind {
             SymbolKind::Property(p) => p.identifier.as_str(),
             SymbolKind::TypeVariable(t) => t.identifier.as_str(),
             SymbolKind::TypeConstraint(t) => t.identifier.as_str(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn as_class(&self) -> Option<&crate::class::Class> {
+        match self {
+            SymbolKind::Class(c) => Some(c),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn as_field(&self) -> Option<&crate::field::Field> {
+        match self {
+            SymbolKind::Field(f) => Some(f),
+            _ => None,
         }
     }
 

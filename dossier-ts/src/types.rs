@@ -95,7 +95,6 @@ impl Type {
 }
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
-    println!("Parsing type: {}", node.to_sexp());
     match node.kind() {
         "predefined_type" => {
             let type_name = node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();

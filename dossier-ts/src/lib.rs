@@ -1,4 +1,6 @@
+mod class;
 mod export_clause;
+mod field;
 mod function;
 mod helpers;
 mod import;
@@ -116,6 +118,10 @@ fn handle_node(node: &Node, ctx: &mut ParserContext) -> Result<()> {
         import::NODE_KIND => {
             let import = import::parse(node, ctx)?;
             ctx.symbol_table.add_import(import);
+        }
+        class::NODE_KIND => {
+            let symbol = class::parse(node, ctx)?;
+            ctx.symbol_table.add_symbol(symbol);
         }
         function::NODE_KIND => {
             let symbol = function::parse(node, ctx)?;
@@ -333,6 +339,37 @@ mod test {
             prop_type.kind.as_type().unwrap(),
             &Type::Predefined("number".to_owned())
         );
+    }
+
+    #[test]
+    fn parses_class() {
+        let source = indoc! { r#"
+        class Point {
+          x = 10;
+          y = 10;
+         
+          scale(n: number): void {
+            this.x *= n;
+            this.y *= n;
+          }
+        }
+        "#};
+
+        let table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
+
+        let symbols = table.all_symbols().collect::<Vec<_>>();
+        assert_eq!(symbols.len(), 1, "No symbols found");
+
+        let symbol = symbols[0];
+        let interface = symbol.kind.as_class().unwrap();
+
+        assert_eq!(interface.identifier, "Point");
+
+        let methods = interface.methods();
+        assert_eq!(methods.count(), 1);
+
+        let fields = interface.fields();
+        assert_eq!(fields.count(), 2);
     }
 
     #[test]
