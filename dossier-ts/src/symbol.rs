@@ -117,6 +117,7 @@ impl Symbol {
             SymbolKind::Interface(i) => Some(i.identifier.as_str()),
             SymbolKind::Class(i) => Some(i.identifier.as_str()),
             SymbolKind::TypeVariable(t) => Some(t.identifier.as_str()),
+            SymbolKind::Function(f) => Some(f.identifier.as_str()),
             _ => None,
         }
     }

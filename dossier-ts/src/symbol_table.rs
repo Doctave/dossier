@@ -72,7 +72,7 @@ impl SymbolTable {
         }
 
         SymbolIterator::new(&self.symbols)
-            .filter(|sym| sym.identifier() == Some(identifier))
+            .filter(|sym| sym.resolvable_identifier() == Some(identifier))
             .filter(|sym| parent_scopes.contains(&sym.scope_id))
             .filter(|sym| sym.id != symbol_id)
             .max_by(|sym, other| sym.scope_id.cmp(&other.scope_id))

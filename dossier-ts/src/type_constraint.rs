@@ -15,7 +15,7 @@ pub(crate) struct TypeConstraint {
 }
 
 impl TypeConstraint {
-    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+    pub fn as_entity(&self, source: &Source, _fqn: Option<&str>) -> Entity {
         let mut meta = json!({});
         if self.extends {
             meta["extends"] = true.into();
