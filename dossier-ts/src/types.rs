@@ -57,13 +57,14 @@ pub(crate) enum Type {
     KeyOf(Vec<Symbol>),
     ReadOnly(Vec<Symbol>),
     Lookup(Vec<Symbol>),
+    Infer(Vec<Symbol>),
     Constructor {
         members: Vec<Symbol>,
     },
 }
 
 impl Type {
-    /// TODO(Nik): Identifiers don't make sense in this situation
+    /// TODO(Nik): Identifiers don't make sense in this situation?
     pub fn identifier(&self) -> &str {
         match self {
             Type::Predefined(type_name) => type_name.as_str(),
@@ -87,6 +88,7 @@ impl Type {
             // TODO: Safely access these vecs and assume there's something there?
             Type::Lookup(symbol) => symbol[0].identifier(),
             Type::Literal(name) => name,
+            Type::Infer(_) => "infer",
             Type::TemplateLiteral(name) => name,
             // TODO(Nik): Give the members of the constructor type
             // explicit context so we can differentiate between the
@@ -110,6 +112,7 @@ impl Type {
             Type::KeyOf(nested) => nested,
             Type::ReadOnly(nested) => nested,
             Type::Lookup(nested) => nested,
+            Type::Infer(nested) => nested,
             _ => &[],
         }
     }
@@ -138,12 +141,34 @@ impl Type {
             Type::KeyOf(nested) => nested,
             Type::ReadOnly(nested) => nested,
             Type::Lookup(nested) => nested,
+            Type::Infer(nested) => nested,
             _ => &mut [],
         }
     }
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::Infer(members) => {
+                let meta = json!({});
+
+                let title_inner = members
+                    .iter()
+                    .map(|s| s.identifier())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                Entity {
+                    title: format!("[{}]", title_inner),
+                    description: String::new(),
+                    kind: "infer_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: members.iter().map(|s| s.as_entity()).collect(),
+                }
+            }
             Type::Tuple { members } => {
                 let meta = json!({});
 
@@ -552,6 +577,20 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "infer_type" => {
+            let mut members = vec![];
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+            cursor.goto_next_sibling();
+
+            members.push(parse(&cursor.node(), ctx)?);
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Infer(members)),
+                Source::for_node(node, ctx),
+            ))
+        }
         "tuple_type" => {
             let mut members = vec![];
             let mut cursor = node.walk();
@@ -1442,6 +1481,34 @@ mod test {
             "Expected a literal, got {:?}",
             base
         );
+    }
+
+    #[test]
+    fn parses_infer_type() {
+        let code = indoc! {r#"
+            type Example = infer A;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let the_type = symbol.kind.as_type().unwrap();
+        assert!(matches!(the_type, Type::Infer { .. }));
+        assert_eq!(the_type.identifier(), "infer");
+
+        assert_eq!(the_type.children().len(), 1);
+        let child = the_type.children()[0].kind.as_type().unwrap();
+        assert!(matches!(child, Type::Identifier(_, None)));
+        assert_eq!(child.identifier(), "A");
     }
 
     #[test]
