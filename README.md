@@ -44,8 +44,8 @@ This is the list of types Dossier currently supports:
 | Indexed access types   |   ✅   |
 | Conditional types      |   ✅   |
 | Template literal types |   ✅   |
+| Tuple types            |   🚧   |
 | Mapped types           |   🚧   |
-| Type types             |   🚧   |
 | Infer type (`infer T`) |   🚧   |
 
 ### Python

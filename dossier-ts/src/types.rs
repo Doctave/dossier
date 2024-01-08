@@ -40,6 +40,9 @@ pub(crate) enum Type {
     Array {
         members: Vec<Symbol>,
     },
+    Tuple {
+        members: Vec<Symbol>,
+    },
     Function {
         members: Vec<Symbol>,
     },
@@ -70,6 +73,7 @@ impl Type {
             Type::Union { .. } => "union",
             Type::Intersection { .. } => "intersection",
             Type::GenericType { identifier, .. } => identifier.as_str(),
+            Type::Tuple { .. } => "tuple",
             Type::Array { .. } => "array",
             Type::Function { .. } => "function",
             Type::Parenthesized(_) => "parenthesized",
@@ -84,6 +88,9 @@ impl Type {
             Type::Lookup(symbol) => symbol[0].identifier(),
             Type::Literal(name) => name,
             Type::TemplateLiteral(name) => name,
+            // TODO(Nik): Give the members of the constructor type
+            // explicit context so we can differentiate between the
+            // left side, right side, consequence and alternative childs.
             Type::Constructor { .. } => "constructor",
         }
     }
@@ -97,6 +104,7 @@ impl Type {
             Type::Conditional { members } => members,
             Type::GenericType { members, .. } => members,
             Type::Array { members, .. } => members,
+            Type::Tuple { members, .. } => members,
             Type::Function { members, .. } => members,
             Type::Parenthesized(nested) => nested,
             Type::KeyOf(nested) => nested,
@@ -120,6 +128,9 @@ impl Type {
             Type::Array {
                 ref mut members, ..
             } => members,
+            Type::Tuple {
+                ref mut members, ..
+            } => members,
             Type::Function {
                 ref mut members, ..
             } => members,
@@ -133,6 +144,27 @@ impl Type {
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::Tuple { members } => {
+                let meta = json!({});
+
+                let title_inner = members
+                    .iter()
+                    .map(|s| s.identifier())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                Entity {
+                    title: format!("[{}]", title_inner),
+                    description: String::new(),
+                    kind: "tuple".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: members.iter().map(|s| s.as_entity()).collect(),
+                }
+            }
             Type::Conditional { members } => {
                 let meta = json!({});
 
@@ -520,6 +552,27 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "tuple_type" => {
+            let mut members = vec![];
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+
+            loop {
+                if cursor.node().is_named() {
+                    members.push(parse(&cursor.node(), ctx)?);
+                }
+
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Tuple { members }),
+                Source::for_node(node, ctx),
+            ))
+        }
         "conditional_type" => {
             let mut members = vec![];
             let mut cursor = node.walk();
@@ -1389,6 +1442,42 @@ mod test {
             "Expected a literal, got {:?}",
             base
         );
+    }
+
+    #[test]
+    fn parses_tuple_type() {
+        let code = indoc! {r#"
+            type Example = [string, number, boolean];
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let the_type = symbol.kind.as_type().unwrap();
+        assert!(matches!(the_type, Type::Tuple { .. }));
+
+        assert_eq!(the_type.children().len(), 3);
+
+        let child = the_type.children()[0].kind.as_type().unwrap();
+        assert!(matches!(child, Type::Predefined(_)));
+        assert_eq!(child.identifier(), "string");
+
+        let child = the_type.children()[1].kind.as_type().unwrap();
+        assert!(matches!(child, Type::Predefined(_)));
+        assert_eq!(child.identifier(), "number");
+
+        let child = the_type.children()[2].kind.as_type().unwrap();
+        assert!(matches!(child, Type::Predefined(_)));
+        assert_eq!(child.identifier(), "boolean");
     }
 
     #[test]
