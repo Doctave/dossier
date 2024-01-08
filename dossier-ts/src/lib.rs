@@ -50,6 +50,18 @@ impl dossier_core::DocsParser for TypeScriptParser {
             .map(|p| p.into().to_owned())
             .collect::<Vec<_>>();
 
+        // Some large union type are causing us to stack overflow, so let's
+        // bump the default stack size for the thread pool as a temporary
+        // measure
+        //
+        // The case that caused this was a union with 88 members. Because
+        // unions are modelled as a tree with a left and right side, this
+        // means we are doing a lot of recusion when this type is parsed.
+        rayon::ThreadPoolBuilder::new()
+            .stack_size(4 * 1024 * 1024)
+            .build_global()
+            .unwrap();
+
         paths.as_slice().par_iter().for_each(|path| {
             let code = std::fs::read_to_string(path).unwrap();
             let ctx = ParserContext::new(path, &code);
