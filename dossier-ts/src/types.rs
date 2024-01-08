@@ -628,13 +628,11 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
-        "this_type" => {
-            Ok(Symbol::in_context(
-                ctx,
-                SymbolKind::Type(Type::This),
-                Source::for_node(node, ctx),
-            ))
-        }
+        "this_type" => Ok(Symbol::in_context(
+            ctx,
+            SymbolKind::Type(Type::This),
+            Source::for_node(node, ctx),
+        )),
         "rest_type" => {
             let mut members = vec![];
             let mut cursor = node.walk();
@@ -690,7 +688,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             cursor.goto_first_child();
 
             loop {
-                if !cursor.node().is_named() {
+                if !cursor.node().is_named() || cursor.node().kind() == "comment" {
                     cursor.goto_next_sibling();
                     continue;
                 }
@@ -1728,6 +1726,33 @@ mod test {
             .unwrap();
         assert_eq!(right.identifier(), "string");
         assert!(matches!(right, Type::Predefined(_)));
+    }
+
+    #[test]
+    fn bug_parses_conditional_type_with_comments() {
+        let code = indoc! {r#"
+            type Example = Dog extends Animal ?
+              number
+              // Some comment
+              : string;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let conditional = symbol.kind.as_type().unwrap();
+        assert!(matches!(conditional, Type::Conditional { .. }));
+
+        assert_eq!(conditional.children().len(), 4);
     }
 
     #[test]
