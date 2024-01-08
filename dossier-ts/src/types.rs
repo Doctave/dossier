@@ -1,3 +1,5 @@
+use std::mem;
+
 use crate::{
     function, method, parameter,
     symbol::{Source, Symbol, SymbolContext, SymbolKind},
@@ -46,6 +48,9 @@ pub(crate) enum Type {
     Function {
         members: Vec<Symbol>,
     },
+    Rest {
+        members: Vec<Symbol>,
+    },
     TypeOf(String),
     /// TODO(Nik): Parse the template literal and access its members
     /// Tree-sitter parses the literal into its parts, so we can
@@ -58,6 +63,7 @@ pub(crate) enum Type {
     ReadOnly(Vec<Symbol>),
     Lookup(Vec<Symbol>),
     Infer(Vec<Symbol>),
+    This,
     Constructor {
         members: Vec<Symbol>,
     },
@@ -77,6 +83,7 @@ impl Type {
             Type::Tuple { .. } => "tuple",
             Type::Array { .. } => "array",
             Type::Function { .. } => "function",
+            Type::Rest { .. } => "rest",
             Type::Parenthesized(_) => "parenthesized",
             // TODO(Nik): Does this make sense?
             // Update: nope. It should be recursive, not a string.
@@ -89,6 +96,7 @@ impl Type {
             Type::Lookup(symbol) => symbol[0].identifier(),
             Type::Literal(name) => name,
             Type::Infer(_) => "infer",
+            Type::This => "this",
             Type::TemplateLiteral(name) => name,
             // TODO(Nik): Give the members of the constructor type
             // explicit context so we can differentiate between the
@@ -113,41 +121,84 @@ impl Type {
             Type::ReadOnly(nested) => nested,
             Type::Lookup(nested) => nested,
             Type::Infer(nested) => nested,
-            _ => &[],
+            Type::Intersection { members } => members,
+            Type::Rest { members } => members,
+            Type::Constructor { members } => members,
+            Type::TypeOf(_) => &[],
+            Type::TemplateLiteral(_) => &[],
+            Type::Predefined(_) => &[],
+            Type::Identifier(_, _) => &[],
+            Type::Literal(_) => &[],
+            Type::This => &[],
         }
     }
 
     pub fn children_mut(&mut self) -> &mut [Symbol] {
         match self {
             Type::Object {
-                properties: ref mut fields,
-                ..
+                properties: fields, ..
             } => fields,
-            Type::Union { ref mut members } => members,
-            Type::Conditional { ref mut members } => members,
-            Type::GenericType {
-                ref mut members, ..
-            } => members,
-            Type::Array {
-                ref mut members, ..
-            } => members,
-            Type::Tuple {
-                ref mut members, ..
-            } => members,
-            Type::Function {
-                ref mut members, ..
-            } => members,
+            Type::Union { members } => members,
+            Type::Conditional { members } => members,
+            Type::GenericType { members, .. } => members,
+            Type::Array { members, .. } => members,
+            Type::Tuple { members, .. } => members,
+            Type::Function { members, .. } => members,
             Type::Parenthesized(nested) => nested,
             Type::KeyOf(nested) => nested,
             Type::ReadOnly(nested) => nested,
             Type::Lookup(nested) => nested,
             Type::Infer(nested) => nested,
-            _ => &mut [],
+            Type::Intersection { members } => members,
+            Type::Rest { members } => members,
+            Type::Constructor { members } => members,
+            Type::TypeOf(_) => &mut [],
+            Type::TemplateLiteral(_) => &mut [],
+            Type::Predefined(_) => &mut [],
+            Type::Identifier(_, _) => &mut [],
+            Type::Literal(_) => &mut [],
+            Type::This => &mut [],
         }
     }
 
     pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
         match &self {
+            Type::This => {
+                let meta = json!({});
+
+                Entity {
+                    title: String::from("this"),
+                    description: String::new(),
+                    kind: "this_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: vec![],
+                }
+            }
+            Type::Rest { members } => {
+                let meta = json!({});
+
+                let title_inner = members
+                    .iter()
+                    .map(|s| s.identifier())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                Entity {
+                    title: format!("...{}", title_inner),
+                    description: String::new(),
+                    kind: "rest_type".to_owned(),
+                    identity: Identity::FQN(fqn.to_owned()),
+                    member_context: None,
+                    language: crate::LANGUAGE.to_owned(),
+                    source: source.as_entity_source(),
+                    meta,
+                    members: members.iter().map(|s| s.as_entity()).collect(),
+                }
+            }
             Type::Infer(members) => {
                 let meta = json!({});
 
@@ -577,6 +628,27 @@ impl Type {
 
 pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     match node.kind() {
+        "this_type" => {
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::This),
+                Source::for_node(node, ctx),
+            ))
+        }
+        "rest_type" => {
+            let mut members = vec![];
+            let mut cursor = node.walk();
+            cursor.goto_first_child();
+            cursor.goto_next_sibling();
+
+            members.push(parse(&cursor.node(), ctx)?);
+
+            Ok(Symbol::in_context(
+                ctx,
+                SymbolKind::Type(Type::Rest { members }),
+                Source::for_node(node, ctx),
+            ))
+        }
         "infer_type" => {
             let mut members = vec![];
             let mut cursor = node.walk();
@@ -1545,6 +1617,57 @@ mod test {
         let child = the_type.children()[2].kind.as_type().unwrap();
         assert!(matches!(child, Type::Predefined(_)));
         assert_eq!(child.identifier(), "boolean");
+    }
+
+    #[test]
+    fn parses_rest_type() {
+        let code = indoc! {r#"
+            type Foo = [...string];
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let tuple = symbol.kind.as_type().unwrap();
+        assert!(matches!(tuple, Type::Tuple { .. }));
+
+        let the_type = tuple.children()[0].kind.as_type().unwrap();
+        assert!(matches!(the_type, Type::Rest { .. }));
+
+        let child = the_type.children()[0].kind.as_type().unwrap();
+        assert!(matches!(child, Type::Predefined(_)));
+        assert_eq!(child.identifier(), "string");
+    }
+
+    #[test]
+    fn parses_this_type() {
+        let code = indoc! {r#"
+            type Foo = this;
+        #"#};
+
+        // Setup
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_type(&mut cursor);
+
+        // Parse
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let this = symbol.kind.as_type().unwrap();
+        assert!(matches!(this, Type::This));
     }
 
     #[test]
