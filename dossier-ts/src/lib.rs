@@ -18,10 +18,13 @@ mod types;
 use dossier_core::tree_sitter::{Node, Parser};
 use dossier_core::Result;
 
+use rayon::prelude::*;
+
 use symbol::SymbolContext;
 use symbol_table::{ScopeID, SymbolTable};
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct TypeScriptParser {}
@@ -40,18 +43,24 @@ impl dossier_core::DocsParser for TypeScriptParser {
         paths: T,
         _ctx: &mut dossier_core::Context,
     ) -> Result<Vec<dossier_core::Entity>> {
-        let mut symbols = Vec::new();
+        let out = Mutex::new(Vec::new());
 
-        for path in paths {
-            let path = path.into();
+        let paths: Vec<PathBuf> = paths
+            .into_iter()
+            .map(|p| p.into().to_owned())
+            .collect::<Vec<_>>();
 
+        paths.as_slice().par_iter().for_each(|path| {
             let code = std::fs::read_to_string(path).unwrap();
             let ctx = ParserContext::new(path, &code);
 
-            let symbol_table = parse_file(ctx)?;
+            // TODO(Nik): Handle error
+            let symbol_table = parse_file(ctx).unwrap();
 
-            symbols.push(symbol_table);
-        }
+            out.lock().unwrap().push(symbol_table);
+        });
+
+        let mut symbols = out.into_inner().unwrap();
 
         for table in symbols.iter_mut() {
             table.resolve_types();
@@ -147,7 +156,7 @@ fn handle_node(node: &Node, ctx: &mut ParserContext) -> Result<()> {
             }
         }
         _ => {
-            println!("Unhandled node: {}", node.kind());
+            // println!("Unhandled node: {}", node.kind());
         }
     }
 
@@ -388,11 +397,7 @@ mod test {
 
         let mut table = parse_file(ParserContext::new(Path::new("index.ts"), source)).unwrap();
 
-        println!("{:#?}", table.all_symbols().collect::<Vec<_>>());
-
         table.resolve_types();
-
-        println!("{:#?}", table.all_symbols().collect::<Vec<_>>());
 
         let symbols = table.all_symbols().collect::<Vec<_>>();
         assert_eq!(symbols.len(), 2);

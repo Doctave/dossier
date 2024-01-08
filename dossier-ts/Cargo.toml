@@ -12,6 +12,7 @@ tree-sitter-typescript = "0.20.3"
 tree-sitter-jsdoc = { git = "https://github.com/tree-sitter/tree-sitter-jsdoc.git" }
 lazy_static = "1.4"
 indoc = "2"
+rayon = "1.8.0"
 
 [build-dependencies]
 cc="*"

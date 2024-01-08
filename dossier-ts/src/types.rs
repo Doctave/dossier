@@ -1,5 +1,3 @@
-use std::mem;
-
 use crate::{
     function, method, parameter,
     symbol::{Source, Symbol, SymbolContext, SymbolKind},
