@@ -22,17 +22,17 @@ pub(crate) struct Class {
 }
 
 impl Class {
-    pub(crate) fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+    pub(crate) fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
         let mut meta = json!({});
         if self.exported {
             meta["exported"] = true.into();
         }
 
         Entity {
-            title: self.identifier.clone(),
+            title: Some(self.identifier.clone()),
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "class".to_owned(),
-            identity: Identity::FQN(fqn.to_owned()),
+            identity: Identity::FQN(fqn.expect("Class did not have FQN").to_owned()),
             member_context: None,
             language: "ts".to_owned(),
             source: source.as_entity_source(),

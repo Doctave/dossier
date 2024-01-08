@@ -27,7 +27,7 @@ pub(crate) struct Field {
 }
 
 impl Field {
-    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
         let mut meta = json!({});
         if self.readonly {
             meta["readonly"] = true.into();
@@ -43,10 +43,10 @@ impl Field {
         }
 
         Entity {
-            title: self.identifier.clone(),
+            title: Some(self.identifier.clone()),
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "field".to_owned(),
-            identity: Identity::FQN(fqn.to_owned()),
+            identity: Identity::FQN(fqn.expect("Field did not have FQN").to_owned()),
             member_context: None,
             language: "ts".to_owned(),
             source: source.as_entity_source(),

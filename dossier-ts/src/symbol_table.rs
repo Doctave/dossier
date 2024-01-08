@@ -72,7 +72,7 @@ impl SymbolTable {
         }
 
         SymbolIterator::new(&self.symbols)
-            .filter(|sym| sym.identifier() == identifier)
+            .filter(|sym| sym.identifier() == Some(identifier))
             .filter(|sym| parent_scopes.contains(&sym.scope_id))
             .filter(|sym| sym.id != symbol_id)
             .max_by(|sym, other| sym.scope_id.cmp(&other.scope_id))
@@ -160,7 +160,9 @@ impl SymbolTable {
         // which is an identical list as above, except the last element is the resolved FQN of the symbol
         for (child_indexes, identifier, scope_id, symbol_id) in actions {
             if let Some(matching_symbol) = self.lookup(&identifier, scope_id, symbol_id) {
-                resolutions.push((child_indexes, matching_symbol.fqn.clone()));
+                if let Some(fqn) = matching_symbol.fqn.as_ref() {
+                    resolutions.push((child_indexes, fqn.clone()));
+                }
             }
         }
 
@@ -209,7 +211,9 @@ impl SymbolTable {
                         symbol::UNUSED_SYMBOL_ID,
                     ) {
                         if matching_symbol.is_exported() {
-                            resolutions.push((child_indexes, matching_symbol.fqn.clone()));
+                            if let Some(fqn) = matching_symbol.fqn.as_ref() {
+                                resolutions.push((child_indexes, fqn.clone()));
+                            }
                         }
                     }
                 }
@@ -390,7 +394,7 @@ mod test {
                 start_offset_bytes: 0,
                 end_offset_bytes: 0,
             },
-            fqn: "foo.ts::foo".to_owned(),
+            fqn: Some("foo.ts::foo".to_owned()),
             context: None,
             scope_id: table.current_scope().id,
         });
@@ -428,7 +432,7 @@ mod test {
                 start_offset_bytes: 0,
                 end_offset_bytes: 0,
             },
-            fqn: "foo.ts::foo".to_owned(),
+            fqn: Some("foo.ts::foo".to_owned()),
             context: None,
             scope_id: table.current_scope().id,
         });
@@ -458,7 +462,7 @@ mod test {
                 start_offset_bytes: 0,
                 end_offset_bytes: 0,
             },
-            fqn: "foo.ts::foo".to_owned(),
+            fqn: Some("foo.ts::foo".to_owned()),
             context: None,
             scope_id: table.current_scope().id,
         });
@@ -488,7 +492,7 @@ mod test {
                 start_offset_bytes: 0,
                 end_offset_bytes: 0,
             },
-            fqn: "foo.ts::foo".to_owned(),
+            fqn: Some("foo.ts::foo".to_owned()),
             context: None,
             scope_id: table.current_scope().id,
         });

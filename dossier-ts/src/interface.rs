@@ -18,17 +18,17 @@ pub(crate) struct Interface {
 }
 
 impl Interface {
-    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
         let mut meta = json!({});
         if self.exported {
             meta["exported"] = true.into();
         }
 
         Entity {
-            title: self.identifier.clone(),
+            title: Some(self.identifier.clone()),
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "interface".to_owned(),
-            identity: Identity::FQN(fqn.to_owned()),
+            identity: Identity::FQN(fqn.expect("Interface without FQN").to_owned()),
             member_context: None,
             language: "ts".to_owned(),
             source: source.as_entity_source(),

@@ -12,7 +12,6 @@ pub(crate) const NODE_KIND: &str = "type_parameter";
 pub(crate) struct TypeVariable {
     pub identifier: String,
     pub documentation: Option<String>,
-    pub is_exported: bool,
     pub children: Vec<Symbol>,
 }
 
@@ -46,7 +45,6 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         SymbolKind::TypeVariable(TypeVariable {
             identifier,
             documentation: None,
-            is_exported: false,
             children,
         }),
         Source::for_node(node, ctx),
@@ -61,17 +59,14 @@ impl TypeVariable {
             .filter(|s| s.kind.as_type_constraint().is_some())
     }
 
-    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
-        let mut meta = json!({});
-        if self.is_exported {
-            meta["exported"] = true.into();
-        }
+    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+        let meta = json!({});
 
         Entity {
-            title: self.identifier.clone(),
+            title: Some(self.identifier.clone()),
             description: String::new(),
             kind: "type_constraint".to_owned(),
-            identity: Identity::FQN(fqn.to_owned()),
+            identity: Identity::FQN(fqn.expect("Generic type variable withou FQN").to_owned()),
             member_context: None,
             language: crate::LANGUAGE.to_owned(),
             source: source.as_entity_source(),

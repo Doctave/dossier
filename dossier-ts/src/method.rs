@@ -67,7 +67,7 @@ pub(crate) struct Method {
 }
 
 impl Method {
-    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
         let mut meta = json!({});
 
         if self.is_abstract {
@@ -75,10 +75,10 @@ impl Method {
         }
 
         Entity {
-            title: self.identifier.as_str().to_owned(),
+            title: Some(self.identifier.as_str().to_owned()),
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "method".to_owned(),
-            identity: Identity::FQN(fqn.to_owned()),
+            identity: Identity::FQN(fqn.expect("Method without FQN").to_owned()),
             member_context: None,
             language: "ts".to_owned(),
             source: source.as_entity_source(),

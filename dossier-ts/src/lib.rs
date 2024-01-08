@@ -258,7 +258,7 @@ mod test {
             Some("The documentation".to_string())
         );
         assert_eq!(function.identifier, "foo".to_string());
-        assert_eq!(symbol.fqn, "index.ts::foo");
+        assert_eq!(symbol.fqn.as_ref().unwrap(), "index.ts::foo");
 
         let symbol = symbols[1];
         let function = symbol.kind.as_function().unwrap();
@@ -337,17 +337,27 @@ mod test {
         let properties = interface.properties().collect::<Vec<_>>();
         assert_eq!(properties.len(), 2);
 
-        assert_eq!(properties[0].identifier(), "name");
+        assert_eq!(properties[0].identifier().unwrap(), "name");
         assert!(!properties[0].kind.as_property().unwrap().optional);
-        let prop_type = properties[0].kind.as_property().unwrap().the_type();
+        let prop_type = properties[0]
+            .kind
+            .as_property()
+            .unwrap()
+            .the_type()
+            .unwrap();
         assert_eq!(
             prop_type.kind.as_type().unwrap(),
             &Type::Predefined("string".to_owned())
         );
 
-        assert_eq!(properties[1].identifier(), "age");
+        assert_eq!(properties[1].identifier().unwrap(), "age");
         assert!(properties[1].kind.as_property().unwrap().optional);
-        let prop_type = properties[1].kind.as_property().unwrap().the_type();
+        let prop_type = properties[1]
+            .kind
+            .as_property()
+            .unwrap()
+            .the_type()
+            .unwrap();
         assert_eq!(
             prop_type.kind.as_type().unwrap(),
             &Type::Predefined("number".to_owned())

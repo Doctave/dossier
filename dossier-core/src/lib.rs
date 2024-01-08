@@ -40,13 +40,22 @@ pub enum Identity {
     /// A reference to another entity via its fully qualified name
     #[serde(rename = "refers_to")]
     Reference(FullyQualifiedName),
+    #[serde(skip_serializing)]
+    Anonymous,
+}
+
+impl Identity {
+    pub fn is_anonymous(&self) -> bool {
+        matches!(self, Identity::Anonymous)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Entity {
     /// The title for the entity. Usually the name of the class/function/module, etc.
-    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     /// A description for the entity. Supports Markdown.
     pub description: MarkdownString,
     /// The type of the entity. E.g. function, class, module.
@@ -58,6 +67,7 @@ pub struct Entity {
     /// E.g. a class declaration will have an identity of its fully qualified name, but a
     /// function's return position will have an reference to another entity that describes its type.
     #[serde(flatten)]
+    #[serde(skip_serializing_if = "Identity::is_anonymous")]
     pub identity: Identity,
     /// Child entities. E.g. classes may contain functions, modules may have child modules, etc.
     #[serde(skip_serializing_if = "Vec::is_empty")]

@@ -10,23 +10,22 @@ pub(crate) const NODE_KIND: &str = "constraint";
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TypeConstraint {
-    pub identifier: String,
     pub extends: bool,
     pub children: Vec<Symbol>,
 }
 
 impl TypeConstraint {
-    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
         let mut meta = json!({});
         if self.extends {
             meta["extends"] = true.into();
         }
 
         Entity {
-            title: self.identifier.clone(),
+            title: None,
             description: String::new(),
             kind: "type_constraint".to_owned(),
-            identity: Identity::FQN(fqn.to_owned()),
+            identity: Identity::Anonymous,
             member_context: None,
             language: crate::LANGUAGE.to_owned(),
             source: source.as_entity_source(),
@@ -62,7 +61,6 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
     Ok(Symbol::in_context(
         ctx,
         SymbolKind::TypeConstraint(TypeConstraint {
-            identifier: the_type.fqn.clone(),
             extends,
             children: vec![the_type],
         }),

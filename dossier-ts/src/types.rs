@@ -69,37 +69,20 @@ pub(crate) enum Type {
 
 impl Type {
     /// TODO(Nik): Identifiers don't make sense in this situation?
-    pub fn identifier(&self) -> &str {
+    pub fn identifier(&self) -> Option<&str> {
         match self {
-            Type::Predefined(type_name) => type_name.as_str(),
-            Type::Identifier(identifier, _) => identifier.as_str(),
-            Type::Object { raw_string, .. } => raw_string.as_str(),
-            Type::Conditional { .. } => "conditional",
-            Type::Union { .. } => "union",
-            Type::Intersection { .. } => "intersection",
-            Type::GenericType { identifier, .. } => identifier.as_str(),
-            Type::Tuple { .. } => "tuple",
-            Type::Array { .. } => "array",
-            Type::Function { .. } => "function",
-            Type::Rest { .. } => "rest",
-            Type::Parenthesized(_) => "parenthesized",
-            // TODO(Nik): Does this make sense?
-            // Update: nope. It should be recursive, not a string.
-            Type::TypeOf(name) => name,
-            // TODO: Safely access these vecs and assume there's something there?
-            Type::KeyOf(symbol) => symbol[0].identifier(),
-            // TODO: Safely access these vecs and assume there's something there?
-            Type::ReadOnly(symbol) => symbol[0].identifier(),
-            // TODO: Safely access these vecs and assume there's something there?
-            Type::Lookup(symbol) => symbol[0].identifier(),
-            Type::Literal(name) => name,
-            Type::Infer(_) => "infer",
-            Type::This => "this",
-            Type::TemplateLiteral(name) => name,
+            Type::Predefined(type_name) => Some(type_name),
+            Type::Identifier(identifier, _) => Some(identifier),
+            Type::GenericType { identifier, .. } => Some(identifier),
+            Type::KeyOf(symbol) => None,
+            Type::ReadOnly(symbol) => None,
+            Type::Lookup(symbol) => None,
+            Type::Literal(name) => Some(name),
+            Type::TemplateLiteral(name) => Some(name),
             // TODO(Nik): Give the members of the constructor type
             // explicit context so we can differentiate between the
             // left side, right side, consequence and alternative childs.
-            Type::Constructor { .. } => "constructor",
+            _ => None,
         }
     }
 
@@ -159,16 +142,16 @@ impl Type {
         }
     }
 
-    pub fn as_entity(&self, source: &Source, fqn: &str) -> Entity {
+    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
         match &self {
             Type::This => {
                 let meta = json!({});
 
                 Entity {
-                    title: String::from("this"),
+                    title: Some(String::from("this")),
                     description: String::new(),
                     kind: "this_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -179,17 +162,11 @@ impl Type {
             Type::Rest { members } => {
                 let meta = json!({});
 
-                let title_inner = members
-                    .iter()
-                    .map(|s| s.identifier())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-
                 Entity {
-                    title: format!("...{}", title_inner),
+                    title: None,
                     description: String::new(),
                     kind: "rest_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -200,17 +177,11 @@ impl Type {
             Type::Infer(members) => {
                 let meta = json!({});
 
-                let title_inner = members
-                    .iter()
-                    .map(|s| s.identifier())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-
                 Entity {
-                    title: format!("[{}]", title_inner),
+                    title: None,
                     description: String::new(),
                     kind: "infer_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -221,17 +192,11 @@ impl Type {
             Type::Tuple { members } => {
                 let meta = json!({});
 
-                let title_inner = members
-                    .iter()
-                    .map(|s| s.identifier())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-
                 Entity {
-                    title: format!("[{}]", title_inner),
+                    title: None,
                     description: String::new(),
                     kind: "tuple".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -243,16 +208,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: format!(
-                        "{} extends {} ? {} : {}",
-                        self.conditional_left().unwrap().identifier(),
-                        self.conditional_right().unwrap().identifier(),
-                        self.conditional_consequence().unwrap().identifier(),
-                        self.conditional_alternative().unwrap().identifier()
-                    ),
+                    title: None,
                     description: String::new(),
                     kind: "template_literal_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -264,10 +223,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: format!("{}[{}]", members[0].identifier(), members[1].identifier()),
+                    title: None,
                     description: String::new(),
                     kind: "template_literal_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -279,10 +238,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: literal.to_owned(),
+                    title: Some(literal.to_owned()),
                     description: String::new(),
                     kind: "template_literal_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::FQN(fqn.expect("Tempalte literal without FQN").to_owned()),
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -299,10 +258,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: "keyof".to_owned(),
+                    title: None,
                     description: String::new(),
                     kind: "keyof".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -314,10 +273,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: "constructor".to_owned(),
+                    title: None,
                     description: String::new(),
-                    kind: "parenthesized_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    kind: "constructor_type".to_owned(),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -328,17 +287,11 @@ impl Type {
             Type::Parenthesized(name) => {
                 let meta = json!({});
 
-                let title = if let Some(inner) = name.first() {
-                    format!("({})", inner.identifier())
-                } else {
-                    String::from("()")
-                };
-
                 Entity {
-                    title,
+                    title: None,
                     description: String::new(),
                     kind: "parenthesized_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -350,10 +303,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: format!("\"{}\"", name),
+                    title: Some(format!("\"{}\"", name)),
                     description: String::new(),
                     kind: "literal".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::FQN(fqn.expect("Literal without FQN").to_owned()),
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -365,10 +318,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: format!("typeof {}", name),
+                    title: None,
                     description: String::new(),
                     kind: "typeof".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -380,10 +333,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: "function_type".to_owned(),
+                    title: None,
                     description: String::new(),
                     kind: "function_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -395,10 +348,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: "array_type".to_owned(),
+                    title: None,
                     description: String::new(),
                     kind: "array_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -413,10 +366,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: identifier.to_owned(),
+                    title: Some(identifier.to_owned()),
                     description: String::new(),
                     kind: "generic_type".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::FQN(fqn.expect("Generic withou FQN").to_owned()),
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -428,10 +381,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: "intersection".to_owned(),
+                    title: None,
                     description: String::new(),
                     kind: "intersection".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -443,10 +396,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: "union".to_owned(),
+                    title: None,
                     description: String::new(),
                     kind: "union".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -458,10 +411,10 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: "object".to_owned(),
+                    title: None,
                     description: String::new(),
                     kind: "object".to_owned(),
-                    identity: Identity::FQN(fqn.to_owned()),
+                    identity: Identity::Anonymous,
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
@@ -473,7 +426,7 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: type_name.clone(),
+                    title: Some(type_name.clone()),
                     description: String::new(),
                     kind: "predefined_type".to_owned(),
                     identity: Identity::FQN(format!("builtin::{}", type_name)),
@@ -488,13 +441,13 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: type_name.clone(),
+                    title: Some(type_name.clone()),
                     description: String::new(),
-                    kind: "predefined_type".to_owned(),
-                    identity: if let Some(fqn) = reference {
-                        Identity::Reference(fqn.to_owned())
+                    kind: "identifier".to_owned(),
+                    identity: if let Some(referred_fqn) = reference {
+                        Identity::Reference(referred_fqn.to_owned())
                     } else {
-                        Identity::FQN(fqn.to_owned())
+                        Identity::FQN(fqn.expect("Identifier withou FQN").to_owned())
                     },
                     member_context: None,
                     language: crate::LANGUAGE.to_owned(),
@@ -1285,7 +1238,7 @@ mod test {
 
         let type_def = symbol.kind.as_type().unwrap();
 
-        assert_eq!(type_def.identifier(), "Promise");
+        assert_eq!(type_def.identifier().unwrap(), "Promise");
         assert_eq!(type_def.children().len(), 1);
         assert!(matches!(type_def, Type::GenericType { .. }));
 
@@ -1486,7 +1439,7 @@ mod test {
         let inner = the_type.children()[0].kind.as_type().unwrap();
 
         assert!(matches!(inner, Type::Predefined(_)));
-        assert_eq!(inner.identifier(), "string");
+        assert_eq!(inner.identifier().unwrap(), "string");
     }
 
     #[test]
@@ -1510,7 +1463,7 @@ mod test {
         let the_type = symbol.kind.as_type().unwrap();
         assert!(matches!(the_type, Type::TemplateLiteral(_)));
 
-        assert_eq!(the_type.identifier(), "`varchar(${number})`");
+        assert_eq!(the_type.identifier().unwrap(), "`varchar(${number})`");
     }
 
     #[test]
@@ -1535,7 +1488,7 @@ mod test {
         assert!(matches!(the_type, Type::Lookup { .. }));
 
         let base = the_type.children()[0].kind.as_type().unwrap();
-        assert_eq!(base.identifier(), "Foo");
+        assert_eq!(base.identifier().unwrap(), "Foo");
         assert!(
             matches!(base, Type::Identifier(_, None)),
             "Expected an unresolved identifier, got {:?}",
@@ -1543,7 +1496,7 @@ mod test {
         );
 
         let key = the_type.children()[1].kind.as_type().unwrap();
-        assert_eq!(key.identifier(), "\"example\"");
+        assert_eq!(key.identifier().unwrap(), "\"example\"");
         assert!(
             matches!(key, Type::Literal(_)),
             "Expected a literal, got {:?}",
@@ -1571,12 +1524,11 @@ mod test {
 
         let the_type = symbol.kind.as_type().unwrap();
         assert!(matches!(the_type, Type::Infer { .. }));
-        assert_eq!(the_type.identifier(), "infer");
 
         assert_eq!(the_type.children().len(), 1);
         let child = the_type.children()[0].kind.as_type().unwrap();
         assert!(matches!(child, Type::Identifier(_, None)));
-        assert_eq!(child.identifier(), "A");
+        assert_eq!(child.identifier().unwrap(), "A");
     }
 
     #[test]
@@ -1604,15 +1556,15 @@ mod test {
 
         let child = the_type.children()[0].kind.as_type().unwrap();
         assert!(matches!(child, Type::Predefined(_)));
-        assert_eq!(child.identifier(), "string");
+        assert_eq!(child.identifier().unwrap(), "string");
 
         let child = the_type.children()[1].kind.as_type().unwrap();
         assert!(matches!(child, Type::Predefined(_)));
-        assert_eq!(child.identifier(), "number");
+        assert_eq!(child.identifier().unwrap(), "number");
 
         let child = the_type.children()[2].kind.as_type().unwrap();
         assert!(matches!(child, Type::Predefined(_)));
-        assert_eq!(child.identifier(), "boolean");
+        assert_eq!(child.identifier().unwrap(), "boolean");
     }
 
     #[test]
@@ -1641,7 +1593,7 @@ mod test {
 
         let child = the_type.children()[0].kind.as_type().unwrap();
         assert!(matches!(child, Type::Predefined(_)));
-        assert_eq!(child.identifier(), "string");
+        assert_eq!(child.identifier().unwrap(), "string");
     }
 
     #[test]
@@ -1695,7 +1647,7 @@ mod test {
             .kind
             .as_type()
             .unwrap();
-        assert_eq!(left.identifier(), "Dog");
+        assert_eq!(left.identifier().unwrap(), "Dog");
         assert!(matches!(left, Type::Identifier(_, None)));
 
         let right = conditional
@@ -1704,7 +1656,7 @@ mod test {
             .kind
             .as_type()
             .unwrap();
-        assert_eq!(right.identifier(), "Animal");
+        assert_eq!(right.identifier().unwrap(), "Animal");
         assert!(matches!(right, Type::Identifier(_, None)));
 
         let right = conditional
@@ -1713,7 +1665,7 @@ mod test {
             .kind
             .as_type()
             .unwrap();
-        assert_eq!(right.identifier(), "number");
+        assert_eq!(right.identifier().unwrap(), "number");
         assert!(matches!(right, Type::Predefined(_)));
 
         let right = conditional
@@ -1722,7 +1674,7 @@ mod test {
             .kind
             .as_type()
             .unwrap();
-        assert_eq!(right.identifier(), "string");
+        assert_eq!(right.identifier().unwrap(), "string");
         assert!(matches!(right, Type::Predefined(_)));
     }
 

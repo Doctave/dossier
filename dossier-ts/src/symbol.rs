@@ -17,7 +17,7 @@ pub(crate) struct Symbol {
     pub id: usize,
     pub kind: SymbolKind,
     pub source: Source,
-    pub fqn: String,
+    pub fqn: Option<String>,
     /// If this symbol is a child of another symbol, this
     /// field describes the relationship to its parent.
     ///
@@ -29,7 +29,7 @@ pub(crate) struct Symbol {
 
 impl Symbol {
     pub fn in_context(ctx: &ParserContext, kind: SymbolKind, source: Source) -> Self {
-        let fqn = ctx.construct_fqn(kind.identifier());
+        let fqn = kind.identifier().map(|i| ctx.construct_fqn(i));
         let scope_id = ctx.current_scope();
         let context = ctx.symbol_context().cloned();
 
@@ -60,21 +60,21 @@ impl Symbol {
 
     pub fn as_entity(&self) -> Entity {
         match &self.kind {
-            SymbolKind::Class(c) => c.as_entity(&self.source, &self.fqn),
-            SymbolKind::Function(f) => f.as_entity(&self.source, &self.fqn),
-            SymbolKind::Field(f) => f.as_entity(&self.source, &self.fqn),
-            SymbolKind::Interface(i) => i.as_entity(&self.source, &self.fqn),
-            SymbolKind::Method(m) => m.as_entity(&self.source, &self.fqn),
-            SymbolKind::TypeAlias(a) => a.as_entity(&self.source, &self.fqn),
-            SymbolKind::Type(t) => t.as_entity(&self.source, &self.fqn),
-            SymbolKind::Parameter(p) => p.as_entity(&self.source, &self.fqn),
-            SymbolKind::Property(p) => p.as_entity(&self.source, &self.fqn),
-            SymbolKind::TypeVariable(t) => t.as_entity(&self.source, &self.fqn),
-            SymbolKind::TypeConstraint(t) => t.as_entity(&self.source, &self.fqn),
+            SymbolKind::Class(c) => c.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::Function(f) => f.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::Field(f) => f.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::Interface(i) => i.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::Method(m) => m.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::TypeAlias(a) => a.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::Type(t) => t.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::Parameter(p) => p.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::Property(p) => p.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::TypeVariable(t) => t.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::TypeConstraint(t) => t.as_entity(&self.source, self.fqn.as_deref()),
         }
     }
 
-    pub fn identifier(&self) -> &str {
+    pub fn identifier(&self) -> Option<&str> {
         self.kind.identifier()
     }
 
@@ -114,6 +114,9 @@ impl Symbol {
         match &self.kind {
             SymbolKind::Type(t) => t.resolvable_identifier(),
             SymbolKind::TypeAlias(t) => Some(t.identifier.as_str()),
+            SymbolKind::Interface(i) => Some(i.identifier.as_str()),
+            SymbolKind::Class(i) => Some(i.identifier.as_str()),
+            SymbolKind::TypeVariable(t) => Some(t.identifier.as_str()),
             _ => None,
         }
     }
@@ -150,19 +153,19 @@ pub(crate) enum SymbolKind {
 }
 
 impl SymbolKind {
-    pub fn identifier(&self) -> &str {
+    pub fn identifier(&self) -> Option<&str> {
         match &self {
-            SymbolKind::Class(c) => c.identifier.as_str(),
-            SymbolKind::Function(f) => f.identifier.as_str(),
-            SymbolKind::Field(f) => f.identifier.as_str(),
-            SymbolKind::Interface(i) => i.identifier.as_str(),
-            SymbolKind::Method(m) => m.identifier.as_str(),
-            SymbolKind::TypeAlias(a) => a.identifier.as_str(),
+            SymbolKind::Class(c) => Some(c.identifier.as_str()),
+            SymbolKind::Function(f) => Some(f.identifier.as_str()),
+            SymbolKind::Field(f) => Some(f.identifier.as_str()),
+            SymbolKind::Interface(i) => Some(i.identifier.as_str()),
+            SymbolKind::Method(m) => Some(m.identifier.as_str()),
+            SymbolKind::TypeAlias(a) => Some(a.identifier.as_str()),
             SymbolKind::Type(t) => t.identifier(),
-            SymbolKind::Parameter(p) => p.identifier.as_str(),
-            SymbolKind::Property(p) => p.identifier.as_str(),
-            SymbolKind::TypeVariable(t) => t.identifier.as_str(),
-            SymbolKind::TypeConstraint(t) => t.identifier.as_str(),
+            SymbolKind::Parameter(p) => Some(p.identifier.as_str()),
+            SymbolKind::Property(p) => Some(p.identifier.as_str()),
+            SymbolKind::TypeVariable(t) => Some(t.identifier.as_str()),
+            SymbolKind::TypeConstraint(_) => None,
         }
     }
 
