@@ -1,4 +1,5 @@
 use crate::{
+    helpers::*,
     symbol::{Source, Symbol, SymbolKind},
     type_variable, types, ParserContext,
 };
@@ -8,6 +9,7 @@ use dossier_core::{tree_sitter::Node, Entity, Result};
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TypeAlias {
     pub identifier: String,
+    pub documentation: Option<String>,
     /// Technically will ever only have one child, the type itself, but other
     /// parts of the program will expect a slice of children so this is simpler.
     pub children: Vec<Symbol>,
@@ -23,7 +25,7 @@ impl TypeAlias {
 
         Entity {
             title: Some(self.identifier.clone()),
-            description: String::new(),
+            description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "type_alias".to_owned(),
             identity: dossier_core::Identity::FQN(fqn.expect("Type alias without FQN").to_owned()),
             members: self
@@ -103,6 +105,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             identifier,
             children,
             exported: is_exported(node),
+            documentation: find_docs(node, ctx.code).map(process_comment),
         }),
         Source {
             file: ctx.file.to_owned(),
@@ -116,6 +119,24 @@ fn is_exported(node: &Node) -> bool {
     node.parent()
         .map(|p| p.kind() == "export_statement")
         .unwrap_or(false)
+}
+
+fn find_docs<'a>(node: &Node<'a>, code: &'a str) -> Option<&'a str> {
+    let parent = node.parent().unwrap();
+
+    if parent.kind() == "export_statement" {
+        if let Some(maybe_comment) = parent.prev_sibling() {
+            if maybe_comment.kind() == "comment" {
+                return Some(maybe_comment.utf8_text(code.as_bytes()).unwrap());
+            }
+        }
+    } else if let Some(maybe_comment) = node.prev_sibling() {
+        if maybe_comment.kind() == "comment" {
+            return Some(maybe_comment.utf8_text(code.as_bytes()).unwrap());
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -155,7 +176,7 @@ mod test {
     }
 
     #[test]
-    fn documentation() {
+    fn generic_type_variables() {
         let code = indoc! {r#"
         type Example<T> = T;
         "#};
@@ -180,5 +201,30 @@ mod test {
 
         let var = type_variables[0];
         assert_eq!(var.kind.as_type_variable().unwrap().identifier, "T");
+    }
+
+    #[test]
+    fn documentation() {
+        let code = indoc! {r#"
+        /**
+         * This is a type alias
+         */
+        type Example<T> = T;
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_alias(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        assert_eq!(
+            symbol.kind.as_type_alias().unwrap().documentation,
+            Some("This is a type alias".to_owned())
+        );
     }
 }
