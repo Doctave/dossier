@@ -46,6 +46,15 @@ impl<'a> Symbol<'a> {
     pub fn as_class(&self) -> Option<&crate::class::Class<'a>> {
         match &self.kind {
             SymbolKind::Class(class) => Some(class),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn as_function(&self) -> Option<&crate::function::Function<'a>> {
+        match &self.kind {
+            SymbolKind::Function(f) => Some(f),
+            _ => None,
         }
     }
 }
@@ -53,4 +62,5 @@ impl<'a> Symbol<'a> {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum SymbolKind<'a> {
     Class(crate::class::Class<'a>),
+    Function(crate::function::Function<'a>),
 }

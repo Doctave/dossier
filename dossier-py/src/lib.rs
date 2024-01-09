@@ -1,14 +1,16 @@
 mod class;
+mod function;
 mod symbol;
 
-use crate::symbol::{ParseSymbol, Symbol};
-
-use class::Class;
 use dossier_core::tree_sitter::{Node, Parser};
 use dossier_core::Result;
 use tree_sitter::Tree;
 
 use std::path::{Path, PathBuf};
+
+use class::Class;
+use function::Function;
+use symbol::{ParseSymbol, Symbol};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct TypeScriptParser {}
@@ -79,6 +81,8 @@ fn handle_node<'a>(
 ) -> Result<()> {
     if Class::matches_node(node) {
         out.push(Class::parse_symbol(node, ctx).unwrap());
+    } else if Function::matches_node(node) {
+        out.push(Function::parse_symbol(node, ctx).unwrap());
     } else {
         println!("Unhandled node: {}", node.kind());
     }
@@ -125,7 +129,6 @@ impl<'a> ParserContext {
 
 mod helpers {
     pub(crate) fn process_docs(possible_docs: &str) -> Option<String> {
-        println!("{}", possible_docs);
         println!("{:?}", possible_docs);
         if !possible_docs.starts_with("\"\"\"") {
             return None;
@@ -193,6 +196,28 @@ mod test {
         assert_eq!(
             class.documentation.as_deref(),
             Some("Documentation for a class.\n\nMore details.\n    Some other stuff!")
+        );
+    }
+
+    #[test]
+    fn parses_a_function() {
+        let source = indoc! {r#"
+        def complex(real=0.0, imag=0.0):
+            """
+            Form a complex number.
+            """
+            if imag == 0.0 and real == 0.0:
+                return complex_zero
+        "#};
+
+        let ctx = ParserContext::new(PathBuf::from("main.py"), source.to_owned());
+        let symbols = parse_file(&ctx).unwrap();
+
+        let function = symbols.get(0).unwrap().as_function().unwrap();
+        assert_eq!(function.title, "complex");
+        assert_eq!(
+            function.documentation.as_deref(),
+            Some("Form a complex number.")
         );
     }
 }
