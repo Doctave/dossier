@@ -129,7 +129,6 @@ impl<'a> ParserContext {
 
 mod helpers {
     pub(crate) fn process_docs(possible_docs: &str) -> Option<String> {
-        println!("{:?}", possible_docs);
         if !possible_docs.starts_with("\"\"\"") {
             return None;
         }

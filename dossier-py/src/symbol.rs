@@ -29,13 +29,18 @@ impl<'a> Location<'a> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Symbol<'a> {
-    kind: SymbolKind<'a>,
-    loc: Location<'a>,
+    pub kind: SymbolKind<'a>,
+    pub loc: Location<'a>,
+    pub context: Option<SymbolContext>,
 }
 
 impl<'a> Symbol<'a> {
     pub fn new(kind: SymbolKind<'a>, loc: Location<'a>) -> Self {
-        Symbol { kind, loc }
+        Symbol {
+            kind,
+            loc,
+            context: None,
+        }
     }
 
     pub fn as_entity(&self) -> Entity {
@@ -63,4 +68,9 @@ impl<'a> Symbol<'a> {
 pub(crate) enum SymbolKind<'a> {
     Class(crate::class::Class<'a>),
     Function(crate::function::Function<'a>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum SymbolContext {
+    Method,
 }

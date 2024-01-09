@@ -2,7 +2,7 @@ use dossier_core::{tree_sitter::Node, Result};
 
 use crate::{
     function::Function,
-    symbol::{Location, ParseSymbol, Symbol, SymbolKind},
+    symbol::{Location, ParseSymbol, Symbol, SymbolContext, SymbolKind},
     ParserContext,
 };
 
@@ -63,7 +63,9 @@ fn parse_methods<'a>(
 
     loop {
         if Function::matches_node(cursor.node()) {
-            members.push(Function::parse_symbol(cursor.node(), ctx)?);
+            let mut method = Function::parse_symbol(cursor.node(), ctx)?;
+            method.context = Some(SymbolContext::Method);
+            members.push(method);
         }
 
         if !cursor.goto_next_sibling() {
@@ -128,5 +130,7 @@ mod test {
             method.documentation.as_deref(),
             Some("Prints what the animals name is and what sound it makes.")
         );
+
+        assert_eq!(method_symbol.context, Some(SymbolContext::Method));
     }
 }
