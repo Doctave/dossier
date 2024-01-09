@@ -68,6 +68,7 @@ name = "dossier"
 version = "0.1.0"
 dependencies = [
  "dossier-core",
+ "dossier-py",
  "dossier-ts",
  "glob",
  "pretty-duration",

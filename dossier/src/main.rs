@@ -50,6 +50,24 @@ fn main() {
         }
     }
 
+    let python_files = input_files
+        .iter()
+        .filter(|f| f.extension() == Some(OsStr::new(dossier_py::LANGUAGE)))
+        .map(|p| p.as_path())
+        .collect::<Vec<_>>();
+
+    let parser = dossier_py::PythonParser::new();
+
+    match parser.parse(python_files, &mut dossier_core::Context::new()) {
+        Ok(mut entities) => {
+            out.append(&mut entities);
+        }
+        Err(_e) => {
+            eprint!("Error parsing docs");
+            std::process::exit(1);
+        }
+    }
+
     let duration = start.elapsed();
 
     println!("{}", serde_json::to_string_pretty(&out).unwrap());

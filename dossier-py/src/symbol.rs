@@ -1,6 +1,6 @@
 use crate::ParserContext;
 
-use dossier_core::{Entity, Result};
+use dossier_core::{Entity, Result, Source};
 use tree_sitter::Node;
 
 use std::path::Path;
@@ -25,6 +25,15 @@ impl<'a> Location<'a> {
             end_offset_bytes: node.end_byte(),
         }
     }
+
+    pub fn as_source(&self) -> Source {
+        Source {
+            file: self.file.to_path_buf(),
+            start_offset_bytes: self.start_offset_bytes,
+            end_offset_bytes: self.end_offset_bytes,
+            repository: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,7 +53,10 @@ impl<'a> Symbol<'a> {
     }
 
     pub fn as_entity(&self) -> Entity {
-        unimplemented!()
+        match &self.kind {
+            SymbolKind::Class(s) => s.as_entity(&self.loc, self.context.as_ref()),
+            SymbolKind::Function(s) => s.as_entity(&self.loc, self.context.as_ref()),
+        }
     }
 
     #[cfg(test)]

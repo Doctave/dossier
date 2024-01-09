@@ -13,17 +13,17 @@ use function::Function;
 use symbol::{ParseSymbol, Symbol};
 
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct TypeScriptParser {}
+pub struct PythonParser {}
 
-impl TypeScriptParser {
+impl PythonParser {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-const LANGUAGE: &str = "py";
+pub const LANGUAGE: &str = "py";
 
-impl dossier_core::DocsParser for TypeScriptParser {
+impl dossier_core::DocsParser for PythonParser {
     fn parse<'a, P: Into<&'a Path>, T: IntoIterator<Item = P>>(
         &self,
         paths: T,

@@ -1,7 +1,7 @@
-use dossier_core::{tree_sitter::Node, Result};
+use dossier_core::{serde_json::json, tree_sitter::Node, Entity, Result};
 
 use crate::{
-    symbol::{Location, ParseSymbol, Symbol, SymbolKind},
+    symbol::{Location, ParseSymbol, Symbol, SymbolContext, SymbolKind},
     ParserContext,
 };
 
@@ -11,13 +11,33 @@ pub(crate) struct Function<'a> {
     pub documentation: Option<String>,
 }
 
+impl<'a> Function<'a> {
+    pub fn as_entity(&self, loc: &Location, context: Option<&SymbolContext>) -> Entity {
+        Entity {
+            title: Some(self.title.to_owned()),
+            description: self.documentation.as_deref().unwrap_or_default().to_owned(),
+            kind: "function".to_owned(),
+            identity: dossier_core::Identity::FQN("TODO".to_owned()),
+            members: vec![],
+            member_context: context.map(|_| "method".to_owned()),
+            language: crate::LANGUAGE.to_owned(),
+            source: loc.as_source(),
+            meta: json!({}),
+        }
+    }
+}
+
 impl<'a> ParseSymbol<'a> for Function<'a> {
     fn matches_node(node: tree_sitter::Node<'a>) -> bool {
         node.kind() == "function_definition"
     }
 
     fn parse_symbol(node: tree_sitter::Node<'a>, ctx: &'a ParserContext) -> Result<Symbol<'a>> {
-        assert_eq!(node.kind(), "function_definition", "Expected function definition");
+        assert_eq!(
+            node.kind(),
+            "function_definition",
+            "Expected function definition"
+        );
 
         let title = node
             .child_by_field_name("name")

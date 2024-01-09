@@ -1,4 +1,4 @@
-use dossier_core::{tree_sitter::Node, Result};
+use dossier_core::{serde_json::json, tree_sitter::Node, Entity, Result};
 
 use crate::{
     function::Function,
@@ -17,6 +17,20 @@ impl<'a> Class<'a> {
     #[cfg(test)]
     fn methods(&self) -> impl Iterator<Item = &Symbol<'a>> {
         self.members.iter().filter(|s| s.as_function().is_some())
+    }
+
+    pub fn as_entity(&self, loc: &Location, _context: Option<&SymbolContext>) -> Entity {
+        Entity {
+            title: Some(self.title.to_owned()),
+            description: self.documentation.as_deref().unwrap_or_default().to_owned(),
+            kind: "class".to_owned(),
+            identity: dossier_core::Identity::FQN("TODO".to_owned()),
+            members: self.members.iter().map(|s| s.as_entity()).collect(),
+            member_context: None,
+            language: crate::LANGUAGE.to_owned(),
+            source: loc.as_source(),
+            meta: json!({}),
+        }
     }
 }
 
