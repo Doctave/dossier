@@ -56,6 +56,7 @@ impl Symbol {
         match &self.kind {
             SymbolKind::Class(s) => s.as_entity(&self.loc, self.context.as_ref()),
             SymbolKind::Function(s) => s.as_entity(&self.loc, self.context.as_ref()),
+            SymbolKind::Parameter(s) => s.as_entity(&self.loc, self.context.as_ref()),
         }
     }
 
@@ -74,12 +75,21 @@ impl Symbol {
             _ => None,
         }
     }
+
+    #[cfg(test)]
+    pub fn as_parameter(&self) -> Option<&crate::parameter::Parameter> {
+        match &self.kind {
+            SymbolKind::Parameter(parameter) => Some(parameter),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum SymbolKind {
     Class(crate::class::Class),
     Function(crate::function::Function),
+    Parameter(crate::parameter::Parameter),
 }
 
 #[derive(Debug, Clone, PartialEq)]

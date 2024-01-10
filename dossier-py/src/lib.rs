@@ -1,5 +1,6 @@
 mod class;
 mod function;
+mod parameter;
 mod symbol;
 
 use dossier_core::tree_sitter::{Node, Parser};
@@ -35,7 +36,6 @@ impl dossier_core::DocsParser for PythonParser {
             .map(|p| p.into().to_owned())
             .collect::<Vec<_>>();
 
-
         paths.iter().for_each(|path| {
             let code = std::fs::read_to_string(path).unwrap();
             let ctx = ParserContext::new(path, &code);
@@ -56,13 +56,17 @@ impl dossier_core::DocsParser for PythonParser {
     }
 }
 
-fn parse_file(mut ctx: ParserContext) -> Result<Vec<Symbol>> {
-    let mut parser = Parser::new();
-
+fn init_parser() -> dossier_core::tree_sitter::Parser {
+    let mut parser = tree_sitter::Parser::new();
     parser
         .set_language(tree_sitter_python::language())
-        .expect("Error loading TypeScript grammar");
+        .expect("Error loading Python language");
 
+    parser
+}
+
+fn parse_file(mut ctx: ParserContext) -> Result<Vec<Symbol>> {
+    let mut parser = init_parser();
     let tree = parser.parse(ctx.code, None).unwrap();
 
     let mut cursor = tree.root_node().walk();
@@ -71,11 +75,7 @@ fn parse_file(mut ctx: ParserContext) -> Result<Vec<Symbol>> {
     let mut out = vec![];
 
     loop {
-        match cursor.node().kind() {
-            _ => {
-                handle_node(cursor.node(), &mut out, &mut ctx)?;
-            }
-        }
+        handle_node(cursor.node(), &mut out, &mut ctx)?;
 
         if !cursor.goto_next_sibling() {
             break;
@@ -105,10 +105,7 @@ pub(crate) struct ParserContext<'a> {
 
 impl<'a> ParserContext<'a> {
     fn new(file: &'a Path, code: &'a str) -> Self {
-        Self {
-            file,
-            code,
-        }
+        Self { file, code }
     }
 
     fn file(&self) -> &Path {

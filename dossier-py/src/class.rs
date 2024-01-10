@@ -114,15 +114,6 @@ mod test {
     use indoc::indoc;
     use std::path::Path;
 
-    fn init_parser() -> tree_sitter::Parser {
-        let mut parser = tree_sitter::Parser::new();
-        parser
-            .set_language(tree_sitter_python::language())
-            .expect("Error loading Python language");
-
-        parser
-    }
-
     #[test]
     fn parse_methods() {
         let source = indoc! {r#"
@@ -133,7 +124,7 @@ mod test {
         "#};
 
         let ctx = ParserContext::new(Path::new("test.py"), source);
-        let tree = init_parser().parse(source, None).unwrap();
+        let tree = crate::init_parser().parse(source, None).unwrap();
         let mut cursor = tree.root_node().walk();
         cursor.goto_first_child();
 
