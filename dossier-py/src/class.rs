@@ -7,15 +7,15 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Class<'a> {
-    pub title: &'a str,
+pub(crate) struct Class {
+    pub title: String,
     pub documentation: Option<String>,
-    pub members: Vec<Symbol<'a>>,
+    pub members: Vec<Symbol>,
 }
 
-impl<'a> Class<'a> {
+impl Class {
     #[cfg(test)]
-    fn methods(&self) -> impl Iterator<Item = &Symbol<'a>> {
+    fn methods(&self) -> impl Iterator<Item = &Symbol> {
         self.members.iter().filter(|s| s.as_function().is_some())
     }
 
@@ -34,19 +34,20 @@ impl<'a> Class<'a> {
     }
 }
 
-impl<'a> ParseSymbol<'a> for Class<'a> {
-    fn matches_node(node: tree_sitter::Node<'a>) -> bool {
+impl ParseSymbol for Class {
+    fn matches_node(node: tree_sitter::Node) -> bool {
         node.kind() == "class_definition"
     }
 
-    fn parse_symbol(node: tree_sitter::Node<'a>, ctx: &'a ParserContext) -> Result<Symbol<'a>> {
+    fn parse_symbol(node: tree_sitter::Node, ctx: &ParserContext) -> Result<Symbol> {
         assert_eq!(node.kind(), "class_definition", "Expected class definition");
 
         let title = node
             .child_by_field_name("name")
             .expect("Expected class name")
             .utf8_text(ctx.code().as_bytes())
-            .unwrap();
+            .unwrap()
+            .to_owned();
 
         let documentation = find_docs(&node, ctx);
 
@@ -67,11 +68,7 @@ impl<'a> ParseSymbol<'a> for Class<'a> {
     }
 }
 
-fn parse_methods<'a>(
-    node: &Node<'a>,
-    ctx: &'a ParserContext,
-    members: &mut Vec<Symbol<'a>>,
-) -> Result<()> {
+fn parse_methods(node: &Node, ctx: &ParserContext, members: &mut Vec<Symbol>) -> Result<()> {
     let mut cursor = node.walk();
     cursor.goto_first_child();
 
@@ -90,7 +87,7 @@ fn parse_methods<'a>(
     Ok(())
 }
 
-fn find_docs<'a>(node: &Node<'a>, ctx: &'a ParserContext) -> Option<String> {
+fn find_docs(node: &Node, ctx: &ParserContext) -> Option<String> {
     if let Some(body) = node.child_by_field_name("body") {
         let mut cursor = body.walk();
         cursor.goto_first_child();
@@ -115,7 +112,16 @@ fn find_docs<'a>(node: &Node<'a>, ctx: &'a ParserContext) -> Option<String> {
 mod test {
     use super::*;
     use indoc::indoc;
-    use std::path::PathBuf;
+    use std::path::Path;
+
+    fn init_parser() -> tree_sitter::Parser {
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(tree_sitter_python::language())
+            .expect("Error loading Python language");
+
+        parser
+    }
 
     #[test]
     fn parse_methods() {
@@ -126,10 +132,9 @@ mod test {
                 1 + 1
         "#};
 
-        let ctx = ParserContext::new(PathBuf::from("test.py"), source.to_owned());
-
-        let node = ctx.root_node();
-        let mut cursor = node.walk();
+        let ctx = ParserContext::new(Path::new("test.py"), source);
+        let tree = init_parser().parse(source, None).unwrap();
+        let mut cursor = tree.root_node().walk();
         cursor.goto_first_child();
 
         assert!(Class::matches_node(cursor.node()));

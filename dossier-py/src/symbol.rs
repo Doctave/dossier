@@ -3,24 +3,24 @@ use crate::ParserContext;
 use dossier_core::{Entity, Result, Source};
 use tree_sitter::Node;
 
-use std::path::Path;
+use std::path::PathBuf;
 
-pub(crate) trait ParseSymbol<'a> {
-    fn matches_node(node: Node<'a>) -> bool;
-    fn parse_symbol(node: Node<'a>, ctx: &'a ParserContext) -> Result<Symbol<'a>>;
+pub(crate) trait ParseSymbol {
+    fn matches_node(node: Node) -> bool;
+    fn parse_symbol(node: Node, ctx: &ParserContext) -> Result<Symbol>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Location<'a> {
-    file: &'a Path,
+pub(crate) struct Location {
+    file: PathBuf,
     start_offset_bytes: usize,
     end_offset_bytes: usize,
 }
 
-impl<'a> Location<'a> {
-    pub fn new(node: &Node<'a>, ctx: &'a ParserContext) -> Self {
+impl Location {
+    pub fn new(node: &Node, ctx: &ParserContext) -> Self {
         Location {
-            file: ctx.file(),
+            file: ctx.file().to_path_buf(),
             start_offset_bytes: node.start_byte(),
             end_offset_bytes: node.end_byte(),
         }
@@ -37,14 +37,14 @@ impl<'a> Location<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Symbol<'a> {
-    pub kind: SymbolKind<'a>,
-    pub loc: Location<'a>,
+pub(crate) struct Symbol {
+    pub kind: SymbolKind,
+    pub loc: Location,
     pub context: Option<SymbolContext>,
 }
 
-impl<'a> Symbol<'a> {
-    pub fn new(kind: SymbolKind<'a>, loc: Location<'a>) -> Self {
+impl Symbol {
+    pub fn new(kind: SymbolKind, loc: Location) -> Self {
         Symbol {
             kind,
             loc,
@@ -60,7 +60,7 @@ impl<'a> Symbol<'a> {
     }
 
     #[cfg(test)]
-    pub fn as_class(&self) -> Option<&crate::class::Class<'a>> {
+    pub fn as_class(&self) -> Option<&crate::class::Class> {
         match &self.kind {
             SymbolKind::Class(class) => Some(class),
             _ => None,
@@ -68,7 +68,7 @@ impl<'a> Symbol<'a> {
     }
 
     #[cfg(test)]
-    pub fn as_function(&self) -> Option<&crate::function::Function<'a>> {
+    pub fn as_function(&self) -> Option<&crate::function::Function> {
         match &self.kind {
             SymbolKind::Function(f) => Some(f),
             _ => None,
@@ -77,9 +77,9 @@ impl<'a> Symbol<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum SymbolKind<'a> {
-    Class(crate::class::Class<'a>),
-    Function(crate::function::Function<'a>),
+pub(crate) enum SymbolKind {
+    Class(crate::class::Class),
+    Function(crate::function::Function),
 }
 
 #[derive(Debug, Clone, PartialEq)]

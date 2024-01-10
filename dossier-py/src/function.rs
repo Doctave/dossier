@@ -6,12 +6,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Function<'a> {
-    pub title: &'a str,
+pub(crate) struct Function {
+    pub title: String,
     pub documentation: Option<String>,
 }
 
-impl<'a> Function<'a> {
+impl Function {
     pub fn as_entity(&self, loc: &Location, context: Option<&SymbolContext>) -> Entity {
         Entity {
             title: Some(self.title.to_owned()),
@@ -27,12 +27,12 @@ impl<'a> Function<'a> {
     }
 }
 
-impl<'a> ParseSymbol<'a> for Function<'a> {
-    fn matches_node(node: tree_sitter::Node<'a>) -> bool {
+impl ParseSymbol for Function {
+    fn matches_node(node: tree_sitter::Node) -> bool {
         node.kind() == "function_definition"
     }
 
-    fn parse_symbol(node: tree_sitter::Node<'a>, ctx: &'a ParserContext) -> Result<Symbol<'a>> {
+    fn parse_symbol(node: tree_sitter::Node, ctx: &ParserContext) -> Result<Symbol> {
         assert_eq!(
             node.kind(),
             "function_definition",
@@ -43,7 +43,8 @@ impl<'a> ParseSymbol<'a> for Function<'a> {
             .child_by_field_name("name")
             .expect("Expected class name")
             .utf8_text(ctx.code().as_bytes())
-            .unwrap();
+            .unwrap()
+            .to_owned();
 
         let documentation = find_docs(&node, ctx);
 
@@ -57,7 +58,7 @@ impl<'a> ParseSymbol<'a> for Function<'a> {
     }
 }
 
-fn find_docs<'a>(node: &Node<'a>, ctx: &'a ParserContext) -> Option<String> {
+fn find_docs(node: &Node, ctx: &ParserContext) -> Option<String> {
     if let Some(body) = node.child_by_field_name("body") {
         let mut cursor = body.walk();
         cursor.goto_first_child();

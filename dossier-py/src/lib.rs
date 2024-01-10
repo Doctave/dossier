@@ -4,7 +4,6 @@ mod symbol;
 
 use dossier_core::tree_sitter::{Node, Parser};
 use dossier_core::Result;
-use tree_sitter::Tree;
 
 use std::path::{Path, PathBuf};
 
@@ -31,16 +30,20 @@ impl dossier_core::DocsParser for PythonParser {
     ) -> Result<Vec<dossier_core::Entity>> {
         let mut symbols = vec![];
 
-        let ctxs = paths
+        let paths: Vec<PathBuf> = paths
             .into_iter()
             .map(|p| p.into().to_owned())
-            .map(|p| (p.clone(), std::fs::read_to_string(p).unwrap()))
-            .map(|(p, c)| ParserContext::new(p, c))
             .collect::<Vec<_>>();
 
-        ctxs.iter().for_each(|ctx| {
+
+        paths.iter().for_each(|path| {
+            let code = std::fs::read_to_string(path).unwrap();
+            let ctx = ParserContext::new(path, &code);
+
             // TODO(Nik): Handle error
-            symbols.append(&mut parse_file(ctx).unwrap());
+            let mut results = parse_file(ctx).unwrap();
+
+            symbols.append(&mut results);
         });
 
         let mut entities = vec![];
@@ -53,8 +56,16 @@ impl dossier_core::DocsParser for PythonParser {
     }
 }
 
-fn parse_file(ctx: &ParserContext) -> Result<Vec<Symbol>> {
-    let mut cursor = ctx.root_node().walk();
+fn parse_file(mut ctx: ParserContext) -> Result<Vec<Symbol>> {
+    let mut parser = Parser::new();
+
+    parser
+        .set_language(tree_sitter_python::language())
+        .expect("Error loading TypeScript grammar");
+
+    let tree = parser.parse(ctx.code, None).unwrap();
+
+    let mut cursor = tree.root_node().walk();
     assert_eq!(cursor.node().kind(), "module");
     cursor.goto_first_child();
     let mut out = vec![];
@@ -62,7 +73,7 @@ fn parse_file(ctx: &ParserContext) -> Result<Vec<Symbol>> {
     loop {
         match cursor.node().kind() {
             _ => {
-                handle_node(cursor.node(), &mut out, ctx)?;
+                handle_node(cursor.node(), &mut out, &mut ctx)?;
             }
         }
 
@@ -74,11 +85,7 @@ fn parse_file(ctx: &ParserContext) -> Result<Vec<Symbol>> {
     Ok(out)
 }
 
-fn handle_node<'a>(
-    node: Node<'a>,
-    out: &mut Vec<Symbol<'a>>,
-    ctx: &'a ParserContext,
-) -> Result<()> {
+fn handle_node(node: Node, out: &mut Vec<Symbol>, ctx: &mut ParserContext) -> Result<()> {
     if Class::matches_node(node) {
         out.push(Class::parse_symbol(node, ctx).unwrap());
     } else if Function::matches_node(node) {
@@ -91,39 +98,25 @@ fn handle_node<'a>(
 }
 
 #[derive(Debug)]
-pub(crate) struct ParserContext {
-    file: PathBuf,
-    code: String,
-    tree: Tree,
+pub(crate) struct ParserContext<'a> {
+    pub file: &'a Path,
+    pub code: &'a str,
 }
 
-impl<'a> ParserContext {
-    fn new(path: PathBuf, code: String) -> Self {
-        let mut parser = Parser::new();
-
-        parser
-            .set_language(tree_sitter_python::language())
-            .expect("Error loading Python grammar");
-
-        let tree = parser.parse(&code, None).unwrap();
-
+impl<'a> ParserContext<'a> {
+    fn new(file: &'a Path, code: &'a str) -> Self {
         Self {
-            file: path,
+            file,
             code,
-            tree,
         }
     }
 
-    fn code(&self) -> &str {
-        &self.code
-    }
-
     fn file(&self) -> &Path {
-        &self.file
+        self.file.clone()
     }
 
-    fn root_node(&'a self) -> Node<'a> {
-        self.tree.root_node()
+    fn code(&self) -> &str {
+        self.code.clone()
     }
 }
 
@@ -187,8 +180,8 @@ mod test {
             """
         "#};
 
-        let ctx = ParserContext::new(PathBuf::from("main.py"), source.to_owned());
-        let symbols = parse_file(&ctx).unwrap();
+        let ctx = ParserContext::new(Path::new("main.py"), source);
+        let symbols = parse_file(ctx).unwrap();
 
         let class = symbols.get(0).unwrap().as_class().unwrap();
         assert_eq!(class.title, "PyClass");
@@ -209,8 +202,8 @@ mod test {
                 return complex_zero
         "#};
 
-        let ctx = ParserContext::new(PathBuf::from("main.py"), source.to_owned());
-        let symbols = parse_file(&ctx).unwrap();
+        let ctx = ParserContext::new(Path::new("main.py"), source);
+        let symbols = parse_file(ctx).unwrap();
 
         let function = symbols.get(0).unwrap().as_function().unwrap();
         assert_eq!(function.title, "complex");
