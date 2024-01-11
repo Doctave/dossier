@@ -1,6 +1,6 @@
 use crate::{
     helpers::*,
-    symbol::{Source, Symbol, SymbolKind},
+    symbol::{Source, Symbol, SymbolContext, SymbolKind},
     type_variable, types, ParserContext,
 };
 use dossier_core::serde_json::json;
@@ -17,7 +17,12 @@ pub(crate) struct TypeAlias {
 }
 
 impl TypeAlias {
-    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+    pub fn as_entity(
+        &self,
+        source: &Source,
+        fqn: Option<&str>,
+        symbol_context: Option<SymbolContext>,
+    ) -> Entity {
         let mut meta = json!({});
         if self.exported {
             meta["exported"] = true.into();
@@ -33,7 +38,7 @@ impl TypeAlias {
                 .iter()
                 .map(|s| s.as_entity())
                 .collect::<Vec<_>>(),
-            member_context: None,
+            member_context: symbol_context.map(|sc| sc.to_string()),
             language: crate::LANGUAGE.to_owned(),
             source: dossier_core::Source {
                 file: source.file.to_owned(),

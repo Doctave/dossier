@@ -18,7 +18,12 @@ pub(crate) struct Interface {
 }
 
 impl Interface {
-    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+    pub fn as_entity(
+        &self,
+        source: &Source,
+        fqn: Option<&str>,
+        symbol_context: Option<SymbolContext>,
+    ) -> Entity {
         let mut meta = json!({});
         if self.exported {
             meta["exported"] = true.into();
@@ -29,7 +34,7 @@ impl Interface {
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "interface".to_owned(),
             identity: Identity::FQN(fqn.expect("Interface without FQN").to_owned()),
-            member_context: None,
+            member_context: symbol_context.map(|sc| sc.to_string()),
             language: "ts".to_owned(),
             source: source.as_entity_source(),
             meta,
@@ -115,9 +120,9 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         let mut tmp = cursor.node().walk();
         tmp.goto_first_child();
         tmp.goto_next_sibling();
-        ctx.push_context(SymbolContext::Extends);
-        let extends = types::parse(&tmp.node(), ctx)?;
-        ctx.pop_context();
+
+        let mut extends = types::parse(&tmp.node(), ctx)?;
+        extends.context = Some(SymbolContext::Extends);
         children.push(extends);
 
         cursor.goto_next_sibling();

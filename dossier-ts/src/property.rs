@@ -1,6 +1,6 @@
 use crate::{
     helpers::*,
-    symbol::{Source, Symbol, SymbolKind},
+    symbol::{Source, Symbol, SymbolContext, SymbolKind},
     types, ParserContext,
 };
 
@@ -21,7 +21,12 @@ pub(crate) struct Property {
 }
 
 impl Property {
-    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+    pub fn as_entity(
+        &self,
+        source: &Source,
+        fqn: Option<&str>,
+        symbol_context: Option<SymbolContext>,
+    ) -> Entity {
         let mut meta = json!({});
         if self.optional {
             meta["optional"] = true.into();
@@ -41,7 +46,7 @@ impl Property {
             description: String::new(),
             kind: "property".to_owned(),
             identity: Identity::FQN(fqn.expect("Parameter without FQN").to_owned()),
-            member_context: None,
+            member_context: symbol_context.map(|sc| sc.to_string()),
             language: "ts".to_owned(),
             source: source.as_entity_source(),
             meta,
@@ -134,7 +139,7 @@ fn is_optional(node: &Node) -> bool {
     cursor.goto_first_child();
     cursor.goto_next_sibling();
 
-    loop  {
+    loop {
         if cursor.node().kind() == "?" {
             return true;
         }

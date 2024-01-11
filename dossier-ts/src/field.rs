@@ -1,6 +1,6 @@
 use crate::{
     helpers::*,
-    symbol::{Source, Symbol, SymbolKind},
+    symbol::{Source, Symbol, SymbolContext, SymbolKind},
     types, ParserContext,
 };
 use dossier_core::serde_json::json;
@@ -27,7 +27,12 @@ pub(crate) struct Field {
 }
 
 impl Field {
-    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+    pub fn as_entity(
+        &self,
+        source: &Source,
+        fqn: Option<&str>,
+        symbol_context: Option<SymbolContext>,
+    ) -> Entity {
         let mut meta = json!({});
         if self.readonly {
             meta["readonly"] = true.into();
@@ -47,7 +52,7 @@ impl Field {
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "field".to_owned(),
             identity: Identity::FQN(fqn.expect("Field did not have FQN").to_owned()),
-            member_context: None,
+            member_context: symbol_context.map(|sc| sc.to_string()),
             language: "ts".to_owned(),
             source: source.as_entity_source(),
             meta,

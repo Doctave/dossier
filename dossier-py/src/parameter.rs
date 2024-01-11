@@ -24,11 +24,9 @@ impl Parameter {
             title: Some(self.title.to_owned()),
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "parameter".to_owned(),
-            identity: dossier_core::Identity::FQN(
-                fqn.expect("parameter without FQN").to_owned(),
-            ),
+            identity: dossier_core::Identity::FQN(fqn.expect("parameter without FQN").to_owned()),
             members: self.members.iter().map(|s| s.as_entity()).collect(),
-            member_context: context.map(|_| "method".to_owned()),
+            member_context: context.map(|sc| sc.to_string()),
             language: crate::LANGUAGE.to_owned(),
             source: loc.as_source(),
             meta: json!({}),

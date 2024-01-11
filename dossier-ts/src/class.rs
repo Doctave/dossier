@@ -2,7 +2,7 @@ use crate::{
     field,
     helpers::*,
     method,
-    symbol::{Source, Symbol, SymbolKind},
+    symbol::{Source, Symbol, SymbolContext, SymbolKind},
     ParserContext,
 };
 use dossier_core::{serde_json::json, tree_sitter::Node, Entity, Identity, Result};
@@ -22,7 +22,12 @@ pub(crate) struct Class {
 }
 
 impl Class {
-    pub(crate) fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+    pub(crate) fn as_entity(
+        &self,
+        source: &Source,
+        fqn: Option<&str>,
+        symbol_context: Option<SymbolContext>,
+    ) -> Entity {
         let mut meta = json!({});
         if self.exported {
             meta["exported"] = true.into();
@@ -33,7 +38,7 @@ impl Class {
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "class".to_owned(),
             identity: Identity::FQN(fqn.expect("Class did not have FQN").to_owned()),
-            member_context: None,
+            member_context: symbol_context.map(|sc| sc.to_string()),
             language: "ts".to_owned(),
             source: source.as_entity_source(),
             meta,

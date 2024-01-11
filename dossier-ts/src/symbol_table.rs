@@ -437,10 +437,7 @@ mod test {
             scope_id: table.current_scope().id,
         });
 
-        assert_eq!(
-            table.lookup("foo", table.root_scope().id, id),
-            None
-        );
+        assert_eq!(table.lookup("foo", table.root_scope().id, id), None);
     }
 
     #[test]

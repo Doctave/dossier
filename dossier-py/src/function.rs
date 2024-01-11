@@ -29,7 +29,7 @@ impl Function {
                 fqn.expect("function or method without FQN").to_owned(),
             ),
             members: self.members.iter().map(|s| s.as_entity()).collect(),
-            member_context: context.map(|_| "method".to_owned()),
+            member_context: context.map(|sc| sc.to_string()),
             language: crate::LANGUAGE.to_owned(),
             source: loc.as_source(),
             meta: json!({}),

@@ -20,7 +20,6 @@ use dossier_core::Result;
 
 use rayon::prelude::*;
 
-use symbol::SymbolContext;
 use symbol_table::{ScopeID, SymbolTable};
 
 use std::path::{Path, PathBuf};
@@ -180,7 +179,6 @@ pub(crate) struct ParserContext<'a> {
     file: &'a Path,
     code: &'a str,
     symbol_table: SymbolTable,
-    pub symbol_context: Vec<SymbolContext>,
 }
 
 impl<'a> ParserContext<'a> {
@@ -189,7 +187,6 @@ impl<'a> ParserContext<'a> {
             file: path,
             code,
             symbol_table: SymbolTable::new(path),
-            symbol_context: vec![],
         }
     }
 
@@ -215,18 +212,6 @@ impl<'a> ParserContext<'a> {
 
     pub fn pop_scope(&mut self) {
         self.symbol_table.pop_scope();
-    }
-
-    pub fn push_context(&mut self, context: SymbolContext) {
-        self.symbol_context.push(context);
-    }
-
-    pub fn pop_context(&mut self) {
-        self.symbol_context.pop();
-    }
-
-    pub fn symbol_context(&self) -> Option<&SymbolContext> {
-        self.symbol_context.last()
     }
 
     pub fn current_scope(&self) -> ScopeID {

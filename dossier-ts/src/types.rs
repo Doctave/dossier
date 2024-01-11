@@ -142,7 +142,12 @@ impl Type {
         }
     }
 
-    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+    pub fn as_entity(
+        &self,
+        source: &Source,
+        fqn: Option<&str>,
+        symbol_context: Option<SymbolContext>,
+    ) -> Entity {
         match &self {
             Type::This => {
                 let meta = json!({});
@@ -152,7 +157,7 @@ impl Type {
                     description: String::new(),
                     kind: "this_type".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -167,7 +172,7 @@ impl Type {
                     description: String::new(),
                     kind: "rest_type".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -182,7 +187,7 @@ impl Type {
                     description: String::new(),
                     kind: "infer_type".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -197,7 +202,7 @@ impl Type {
                     description: String::new(),
                     kind: "tuple".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -212,7 +217,7 @@ impl Type {
                     description: String::new(),
                     kind: "template_literal_type".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -227,7 +232,7 @@ impl Type {
                     description: String::new(),
                     kind: "template_literal_type".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -242,7 +247,7 @@ impl Type {
                     description: String::new(),
                     kind: "template_literal_type".to_owned(),
                     identity: Identity::FQN(fqn.expect("Tempalte literal without FQN").to_owned()),
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -262,7 +267,7 @@ impl Type {
                     description: String::new(),
                     kind: "keyof".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -277,7 +282,7 @@ impl Type {
                     description: String::new(),
                     kind: "constructor_type".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -292,7 +297,7 @@ impl Type {
                     description: String::new(),
                     kind: "parenthesized_type".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -307,7 +312,7 @@ impl Type {
                     description: String::new(),
                     kind: "literal".to_owned(),
                     identity: Identity::FQN(fqn.expect("Literal without FQN").to_owned()),
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -322,7 +327,7 @@ impl Type {
                     description: String::new(),
                     kind: "typeof".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -337,7 +342,7 @@ impl Type {
                     description: String::new(),
                     kind: "function_type".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -352,7 +357,7 @@ impl Type {
                     description: String::new(),
                     kind: "array_type".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -370,7 +375,7 @@ impl Type {
                     description: String::new(),
                     kind: "generic_type".to_owned(),
                     identity: Identity::FQN(fqn.expect("Generic withou FQN").to_owned()),
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -385,7 +390,7 @@ impl Type {
                     description: String::new(),
                     kind: "intersection".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -400,7 +405,7 @@ impl Type {
                     description: String::new(),
                     kind: "union".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -415,7 +420,7 @@ impl Type {
                     description: String::new(),
                     kind: "object".to_owned(),
                     identity: Identity::Anonymous,
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -430,7 +435,7 @@ impl Type {
                     description: String::new(),
                     kind: "predefined_type".to_owned(),
                     identity: Identity::FQN(format!("builtin::{}", type_name)),
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -449,7 +454,7 @@ impl Type {
                     } else {
                         Identity::FQN(fqn.expect("Identifier withou FQN").to_owned())
                     },
-                    member_context: None,
+                    member_context: symbol_context.map(|sc| sc.to_string()),
                     language: crate::LANGUAGE.to_owned(),
                     source: source.as_entity_source(),
                     meta,
@@ -804,9 +809,9 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
                 function::parse_parameters(&params, &mut members, ctx)?;
             }
             if let Some(params) = node.child_by_field_name("return_type") {
-                ctx.push_context(SymbolContext::ReturnType);
-                members.push(parse(&params, ctx)?);
-                ctx.pop_context()
+                let mut ret_type = parse(&params, ctx)?;
+                ret_type.context = Some(crate::symbol::SymbolContext::ReturnType);
+                members.push(ret_type);
             }
 
             Ok(Symbol::in_context(
@@ -878,19 +883,19 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             let type_as_string = node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned();
             let mut properties = vec![];
 
-            ctx.push_context(SymbolContext::Property);
-
             let mut cursor = node.walk();
             cursor.goto_first_child();
             cursor.goto_next_sibling();
 
             loop {
                 if cursor.node().kind() == crate::property::NODE_KIND {
-                    let symbol = crate::property::parse(&cursor.node(), ctx)?;
+                    let mut symbol = crate::property::parse(&cursor.node(), ctx)?;
+                    symbol.context = Some(SymbolContext::Property);
                     properties.push(symbol);
                 }
                 if cursor.node().kind() == method::NODE_KIND {
-                    let symbol = method::parse(&cursor.node(), ctx)?;
+                    let mut symbol = method::parse(&cursor.node(), ctx)?;
+                    symbol.context = Some(SymbolContext::Property);
                     properties.push(symbol);
                 }
                 if !cursor.goto_next_sibling() {

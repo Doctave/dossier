@@ -1,5 +1,5 @@
 use crate::{
-    symbol::{Source, Symbol, SymbolKind},
+    symbol::{Source, Symbol, SymbolContext, SymbolKind},
     type_constraint, ParserContext,
 };
 
@@ -59,7 +59,12 @@ impl TypeVariable {
             .filter(|s| s.kind.as_type_constraint().is_some())
     }
 
-    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+    pub fn as_entity(
+        &self,
+        source: &Source,
+        fqn: Option<&str>,
+        symbol_context: Option<SymbolContext>,
+    ) -> Entity {
         let meta = json!({});
 
         Entity {
@@ -67,7 +72,7 @@ impl TypeVariable {
             description: String::new(),
             kind: "type_constraint".to_owned(),
             identity: Identity::FQN(fqn.expect("Generic type variable withou FQN").to_owned()),
-            member_context: None,
+            member_context: symbol_context.map(|sc| sc.to_string()),
             language: crate::LANGUAGE.to_owned(),
             source: source.as_entity_source(),
             meta,

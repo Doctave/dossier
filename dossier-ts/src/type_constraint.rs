@@ -1,5 +1,5 @@
 use crate::{
-    symbol::{Source, Symbol, SymbolKind},
+    symbol::{Source, Symbol, SymbolContext, SymbolKind},
     ParserContext,
 };
 
@@ -15,7 +15,12 @@ pub(crate) struct TypeConstraint {
 }
 
 impl TypeConstraint {
-    pub fn as_entity(&self, source: &Source, _fqn: Option<&str>) -> Entity {
+    pub fn as_entity(
+        &self,
+        source: &Source,
+        _fqn: Option<&str>,
+        symbol_context: Option<SymbolContext>,
+    ) -> Entity {
         let mut meta = json!({});
         if self.extends {
             meta["extends"] = true.into();
@@ -26,7 +31,7 @@ impl TypeConstraint {
             description: String::new(),
             kind: "type_constraint".to_owned(),
             identity: Identity::Anonymous,
-            member_context: None,
+            member_context: symbol_context.map(|sc| sc.to_string()),
             language: crate::LANGUAGE.to_owned(),
             source: source.as_entity_source(),
             meta,

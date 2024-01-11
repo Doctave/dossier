@@ -24,7 +24,7 @@ impl Type {
             kind: "type".to_owned(),
             identity: match fqn {
                 Some(f) => dossier_core::Identity::FQN(f.to_owned()),
-                None => dossier_core::Identity::Anonymous
+                None => dossier_core::Identity::Anonymous,
             },
             members: vec![],
             member_context: context.map(|c| c.to_string()),

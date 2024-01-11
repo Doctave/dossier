@@ -31,15 +31,14 @@ impl Symbol {
     pub fn in_context(ctx: &ParserContext, kind: SymbolKind, source: Source) -> Self {
         let fqn = kind.identifier().map(|i| ctx.construct_fqn(i));
         let scope_id = ctx.current_scope();
-        let context = ctx.symbol_context().cloned();
 
         Self {
             id: SYMBOL_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
             kind,
             source,
             fqn,
-            context,
             scope_id,
+            context: None, // To be overridden from outside
         }
     }
 
@@ -60,17 +59,27 @@ impl Symbol {
 
     pub fn as_entity(&self) -> Entity {
         match &self.kind {
-            SymbolKind::Class(c) => c.as_entity(&self.source, self.fqn.as_deref()),
-            SymbolKind::Function(f) => f.as_entity(&self.source, self.fqn.as_deref()),
-            SymbolKind::Field(f) => f.as_entity(&self.source, self.fqn.as_deref()),
-            SymbolKind::Interface(i) => i.as_entity(&self.source, self.fqn.as_deref()),
-            SymbolKind::Method(m) => m.as_entity(&self.source, self.fqn.as_deref()),
-            SymbolKind::TypeAlias(a) => a.as_entity(&self.source, self.fqn.as_deref()),
-            SymbolKind::Type(t) => t.as_entity(&self.source, self.fqn.as_deref()),
-            SymbolKind::Parameter(p) => p.as_entity(&self.source, self.fqn.as_deref()),
-            SymbolKind::Property(p) => p.as_entity(&self.source, self.fqn.as_deref()),
-            SymbolKind::TypeVariable(t) => t.as_entity(&self.source, self.fqn.as_deref()),
-            SymbolKind::TypeConstraint(t) => t.as_entity(&self.source, self.fqn.as_deref()),
+            SymbolKind::Class(c) => c.as_entity(&self.source, self.fqn.as_deref(), self.context),
+            SymbolKind::Function(f) => f.as_entity(&self.source, self.fqn.as_deref(), self.context),
+            SymbolKind::Field(f) => f.as_entity(&self.source, self.fqn.as_deref(), self.context),
+            SymbolKind::Interface(i) => {
+                i.as_entity(&self.source, self.fqn.as_deref(), self.context)
+            }
+            SymbolKind::Method(m) => m.as_entity(&self.source, self.fqn.as_deref(), self.context),
+            SymbolKind::TypeAlias(a) => {
+                a.as_entity(&self.source, self.fqn.as_deref(), self.context)
+            }
+            SymbolKind::Type(t) => t.as_entity(&self.source, self.fqn.as_deref(), self.context),
+            SymbolKind::Parameter(p) => {
+                p.as_entity(&self.source, self.fqn.as_deref(), self.context)
+            }
+            SymbolKind::Property(p) => p.as_entity(&self.source, self.fqn.as_deref(), self.context),
+            SymbolKind::TypeVariable(t) => {
+                t.as_entity(&self.source, self.fqn.as_deref(), self.context)
+            }
+            SymbolKind::TypeConstraint(t) => {
+                t.as_entity(&self.source, self.fqn.as_deref(), self.context)
+            }
         }
     }
 
@@ -130,11 +139,23 @@ impl Symbol {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub(crate) enum SymbolContext {
     ReturnType,
     Property,
+    Parameter,
     Extends,
+}
+
+impl std::fmt::Display for SymbolContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SymbolContext::ReturnType => write!(f, "return_type"),
+            SymbolContext::Property => write!(f, "property"),
+            SymbolContext::Parameter => write!(f, "parameter"),
+            SymbolContext::Extends => write!(f, "extends"),
+        }
+    }
 }
 
 /// The type of the symbol.

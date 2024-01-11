@@ -67,7 +67,12 @@ pub(crate) struct Method {
 }
 
 impl Method {
-    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+    pub fn as_entity(
+        &self,
+        source: &Source,
+        fqn: Option<&str>,
+        symbol_context: Option<SymbolContext>,
+    ) -> Entity {
         let mut meta = json!({});
 
         if self.is_abstract {
@@ -79,7 +84,7 @@ impl Method {
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "method".to_owned(),
             identity: Identity::FQN(fqn.expect("Method without FQN").to_owned()),
-            member_context: None,
+            member_context: symbol_context.map(|sc| sc.to_string()),
             language: "ts".to_owned(),
             source: source.as_entity_source(),
             meta,
@@ -141,7 +146,13 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         let mut cursor = name_node.walk();
         cursor.goto_first_child();
         cursor.goto_next_sibling();
-        Identifier::Computed(cursor.node().utf8_text(ctx.code.as_bytes()).unwrap().to_owned())
+        Identifier::Computed(
+            cursor
+                .node()
+                .utf8_text(ctx.code.as_bytes())
+                .unwrap()
+                .to_owned(),
+        )
     } else {
         Identifier::Name(name_node.utf8_text(ctx.code.as_bytes()).unwrap().to_owned())
     };
@@ -190,12 +201,15 @@ fn parse_return_type(
 ) -> Result<()> {
     let mut type_node_cursor = node.walk();
     type_node_cursor.goto_first_child();
+
     while !type_node_cursor.node().is_named() {
         type_node_cursor.goto_next_sibling();
     }
-    ctx.push_context(SymbolContext::ReturnType);
-    children.push(types::parse(&type_node_cursor.node(), ctx).unwrap());
-    ctx.pop_context();
+
+    let mut ret_type = types::parse(&type_node_cursor.node(), ctx).unwrap();
+    ret_type.context = Some(SymbolContext::ReturnType);
+    children.push(ret_type);
+
     Ok(())
 }
 
@@ -213,7 +227,8 @@ fn parse_parameters(
         if cursor.node().kind() == "required_parameter"
             || cursor.node().kind() == "optional_parameter"
         {
-            let parameter = parameter::parse(&cursor.node(), ctx)?;
+            let mut parameter = parameter::parse(&cursor.node(), ctx)?;
+            parameter.context = Some(SymbolContext::Parameter);
             children.push(parameter);
         }
 

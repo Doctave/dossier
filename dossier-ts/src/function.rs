@@ -35,7 +35,12 @@ pub(crate) struct Function {
 }
 
 impl Function {
-    pub fn as_entity(&self, source: &Source, fqn: Option<&str>) -> Entity {
+    pub fn as_entity(
+        &self,
+        source: &Source,
+        fqn: Option<&str>,
+        symbol_context: Option<SymbolContext>,
+    ) -> Entity {
         let mut meta = json!({});
         if self.is_exported {
             meta["exported"] = true.into();
@@ -46,7 +51,7 @@ impl Function {
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "function".to_owned(),
             identity: Identity::FQN(fqn.expect("Function did not have FQN").to_owned()),
-            member_context: None,
+            member_context: symbol_context.map(|sc| sc.to_string()),
             language: "ts".to_owned(),
             source: source.as_entity_source(),
             meta,
@@ -145,9 +150,9 @@ pub(crate) fn parse_return_type(
     while !type_node_cursor.node().is_named() {
         type_node_cursor.goto_next_sibling();
     }
-    ctx.push_context(SymbolContext::ReturnType);
-    children.push(types::parse(&type_node_cursor.node(), ctx).unwrap());
-    ctx.pop_context();
+    let mut the_type = types::parse(&type_node_cursor.node(), ctx).unwrap();
+    the_type.context = Some(SymbolContext::ReturnType);
+    children.push(the_type);
     Ok(())
 }
 
@@ -165,7 +170,8 @@ pub(crate) fn parse_parameters(
         if cursor.node().kind() == "required_parameter"
             || cursor.node().kind() == "optional_parameter"
         {
-            let parameter = parameter::parse(&cursor.node(), ctx)?;
+            let mut parameter = parameter::parse(&cursor.node(), ctx)?;
+            parameter.context = Some(SymbolContext::Parameter);
             children.push(parameter);
         }
 
@@ -298,8 +304,12 @@ mod test {
 
         let params = function.parameters().collect::<Vec<_>>();
         assert_eq!(params.len(), 3);
+        assert!(params
+            .iter()
+            .all(|p| p.context == Some(SymbolContext::Parameter)));
 
         let bar = params[0].kind.as_parameter().unwrap();
+        assert_eq!(params[0].context, Some(SymbolContext::Parameter));
         assert_eq!(bar.identifier, "bar");
         assert!(!bar.optional);
         assert_eq!(
