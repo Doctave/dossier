@@ -28,7 +28,7 @@ impl Function {
             identity: dossier_core::Identity::FQN(
                 fqn.expect("function or method without FQN").to_owned(),
             ),
-            members: vec![],
+            members: self.members.iter().map(|s| s.as_entity()).collect(),
             member_context: context.map(|_| "method".to_owned()),
             language: crate::LANGUAGE.to_owned(),
             source: loc.as_source(),

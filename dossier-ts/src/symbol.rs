@@ -74,6 +74,7 @@ impl Symbol {
         }
     }
 
+    #[cfg(test)]
     pub fn identifier(&self) -> Option<&str> {
         self.kind.identifier()
     }

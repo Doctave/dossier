@@ -74,9 +74,9 @@ impl Type {
             Type::Predefined(type_name) => Some(type_name),
             Type::Identifier(identifier, _) => Some(identifier),
             Type::GenericType { identifier, .. } => Some(identifier),
-            Type::KeyOf(symbol) => None,
-            Type::ReadOnly(symbol) => None,
-            Type::Lookup(symbol) => None,
+            Type::KeyOf(_symbol) => None,
+            Type::ReadOnly(_symbol) => None,
+            Type::Lookup(_symbol) => None,
             Type::Literal(name) => Some(name),
             Type::TemplateLiteral(name) => Some(name),
             // TODO(Nik): Give the members of the constructor type
@@ -284,7 +284,7 @@ impl Type {
                     members: members.iter().map(|s| s.as_entity()).collect(),
                 }
             }
-            Type::Parenthesized(name) => {
+            Type::Parenthesized(_name) => {
                 let meta = json!({});
 
                 Entity {
@@ -318,7 +318,7 @@ impl Type {
                 let meta = json!({});
 
                 Entity {
-                    title: None,
+                    title: Some(format!("typeof {}", name)),
                     description: String::new(),
                     kind: "typeof".to_owned(),
                     identity: Identity::Anonymous,
@@ -495,6 +495,7 @@ impl Type {
         }
     }
 
+    #[cfg(test)]
     pub fn conditional_left(&self) -> Option<&Symbol> {
         match self {
             Type::Conditional { members } => members.get(0),
@@ -502,6 +503,7 @@ impl Type {
         }
     }
 
+    #[cfg(test)]
     pub fn conditional_right(&self) -> Option<&Symbol> {
         match self {
             Type::Conditional { members } => members.get(1),
@@ -509,6 +511,7 @@ impl Type {
         }
     }
 
+    #[cfg(test)]
     pub fn conditional_consequence(&self) -> Option<&Symbol> {
         match self {
             Type::Conditional { members } => members.get(2),
@@ -516,6 +519,7 @@ impl Type {
         }
     }
 
+    #[cfg(test)]
     pub fn conditional_alternative(&self) -> Option<&Symbol> {
         match self {
             Type::Conditional { members } => members.get(3),

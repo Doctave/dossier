@@ -92,7 +92,7 @@ fn handle_node(node: Node, out: &mut Vec<Symbol>, ctx: &mut ParserContext) -> Re
     } else if Function::matches_node(node) {
         out.push(Function::parse_symbol(node, ctx).unwrap());
     } else {
-        println!("Unhandled node: {}", node.kind());
+        // println!("Unhandled node: {}", node.kind());
     }
 
     Ok(())
