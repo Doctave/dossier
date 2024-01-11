@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 pub(crate) trait ParseSymbol {
     fn matches_node(node: Node) -> bool;
-    fn parse_symbol(node: Node, ctx: &ParserContext) -> Result<Symbol>;
+    fn parse_symbol(node: Node, ctx: &mut ParserContext) -> Result<Symbol>;
 }
 
 #[derive(Debug, Clone, PartialEq)]

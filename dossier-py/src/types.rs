@@ -1,4 +1,4 @@
-use dossier_core::{serde_json::json, tree_sitter::Node, Context, Entity, Result};
+use dossier_core::{Entity, Result};
 
 use crate::{
     symbol::{Location, ParseSymbol, Symbol, SymbolContext, SymbolKind},
@@ -22,7 +22,7 @@ impl ParseSymbol for Type {
         node.kind() == "type"
     }
 
-    fn parse_symbol(node: tree_sitter::Node, ctx: &ParserContext) -> Result<Symbol> {
+    fn parse_symbol(node: tree_sitter::Node, ctx: &mut ParserContext) -> Result<Symbol> {
         assert_eq!(node.kind(), "type", "Expected type");
 
         let mut cursor = node.walk();

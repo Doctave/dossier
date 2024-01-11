@@ -39,7 +39,7 @@ impl ParseSymbol for Class {
         node.kind() == "class_definition"
     }
 
-    fn parse_symbol(node: tree_sitter::Node, ctx: &ParserContext) -> Result<Symbol> {
+    fn parse_symbol(node: tree_sitter::Node, ctx: &mut ParserContext) -> Result<Symbol> {
         assert_eq!(node.kind(), "class_definition", "Expected class definition");
 
         let title = node
@@ -68,7 +68,7 @@ impl ParseSymbol for Class {
     }
 }
 
-fn parse_methods(node: &Node, ctx: &ParserContext, members: &mut Vec<Symbol>) -> Result<()> {
+fn parse_methods(node: &Node, ctx: &mut ParserContext, members: &mut Vec<Symbol>) -> Result<()> {
     let mut cursor = node.walk();
     cursor.goto_first_child();
 
@@ -123,14 +123,14 @@ mod test {
                 1 + 1
         "#};
 
-        let ctx = ParserContext::new(Path::new("test.py"), source);
+        let mut ctx = ParserContext::new(Path::new("test.py"), source);
         let tree = crate::init_parser().parse(source, None).unwrap();
         let mut cursor = tree.root_node().walk();
         cursor.goto_first_child();
 
         assert!(Class::matches_node(cursor.node()));
 
-        let symbol = Class::parse_symbol(cursor.node(), &ctx).unwrap();
+        let symbol = Class::parse_symbol(cursor.node(), &mut ctx).unwrap();
         let class = symbol.as_class().unwrap();
 
         let method_symbol = class.methods().next().unwrap();

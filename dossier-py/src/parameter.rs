@@ -1,4 +1,4 @@
-use dossier_core::{serde_json::json, tree_sitter::Node, Context, Entity, Result};
+use dossier_core::{Entity, Result};
 
 use crate::{
     symbol::{Location, ParseSymbol, Symbol, SymbolContext, SymbolKind},
@@ -29,7 +29,7 @@ impl ParseSymbol for Parameter {
         node.kind() == "typed_parameter" || node.kind() == "identifier"
     }
 
-    fn parse_symbol(node: tree_sitter::Node, ctx: &ParserContext) -> Result<Symbol> {
+    fn parse_symbol(node: tree_sitter::Node, ctx: &mut ParserContext) -> Result<Symbol> {
         assert!(
             node.kind() == "typed_parameter" || node.kind() == "identifier",
             "Expected typed_parameter or identifier"

@@ -45,7 +45,7 @@ impl ParseSymbol for Function {
         node.kind() == "function_definition"
     }
 
-    fn parse_symbol(node: tree_sitter::Node, ctx: &ParserContext) -> Result<Symbol> {
+    fn parse_symbol(node: tree_sitter::Node, ctx: &mut ParserContext) -> Result<Symbol> {
         assert_eq!(
             node.kind(),
             "function_definition",
@@ -85,7 +85,7 @@ impl ParseSymbol for Function {
     }
 }
 
-fn parse_parameters(node: &Node, out: &mut Vec<Symbol>, ctx: &ParserContext) -> Result<()> {
+fn parse_parameters(node: &Node, out: &mut Vec<Symbol>, ctx: &mut ParserContext) -> Result<()> {
     let mut cursor = node.walk();
     cursor.goto_first_child();
 
@@ -139,12 +139,12 @@ mod test {
                 pass
         "#};
 
-        let ctx = ParserContext::new(Path::new("test.py"), source);
+        let mut ctx = ParserContext::new(Path::new("test.py"), source);
         let tree = crate::init_parser().parse(source, None).unwrap();
         let mut cursor = tree.root_node().walk();
         cursor.goto_first_child();
 
-        let symbol = Function::parse_symbol(cursor.node(), &ctx).unwrap();
+        let symbol = Function::parse_symbol(cursor.node(), &mut ctx).unwrap();
 
         let function = symbol.as_function().unwrap();
         assert_eq!(function.title, "foo");
