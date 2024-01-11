@@ -44,7 +44,7 @@ impl Function {
         Entity {
             title: Some(self.identifier.clone()),
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
-            kind: "field".to_owned(),
+            kind: "function".to_owned(),
             identity: Identity::FQN(fqn.expect("Function did not have FQN").to_owned()),
             member_context: None,
             language: "ts".to_owned(),
