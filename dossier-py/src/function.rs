@@ -1,8 +1,9 @@
 use dossier_core::{serde_json::json, tree_sitter::Node, Context, Entity, Result};
 
 use crate::{
-    parameter::{self, Parameter},
+    parameter::Parameter,
     symbol::{Location, ParseSymbol, Symbol, SymbolContext, SymbolKind},
+    types::Type,
     ParserContext,
 };
 
@@ -32,6 +33,11 @@ impl Function {
     fn parameters(&self) -> impl Iterator<Item = &Symbol> {
         self.members.iter().filter(|s| s.as_parameter().is_some())
     }
+
+    #[cfg(test)]
+    fn return_type(&self) -> Option<&Symbol> {
+        self.members.iter().find(|s| s.as_type().is_some())
+    }
 }
 
 impl ParseSymbol for Function {
@@ -57,6 +63,13 @@ impl ParseSymbol for Function {
 
         if let Some(parameters_node) = node.child_by_field_name("parameters") {
             parse_parameters(&parameters_node, &mut members, ctx)?;
+        }
+
+        if let Some(return_type_node) = node.child_by_field_name("return_type") {
+            if Type::matches_node(return_type_node) {
+                let symbol = Type::parse_symbol(return_type_node, ctx)?;
+                members.push(symbol);
+            }
         }
 
         let documentation = find_docs(&node, ctx);
@@ -113,18 +126,11 @@ fn find_docs(node: &Node, ctx: &ParserContext) -> Option<String> {
 
 #[cfg(test)]
 mod test {
+    use crate::types::Type;
+
     use super::*;
     use indoc::indoc;
     use std::path::Path;
-
-    fn init_parser() -> tree_sitter::Parser {
-        let mut parser = tree_sitter::Parser::new();
-        parser
-            .set_language(tree_sitter_python::language())
-            .expect("Error loading Python language");
-
-        parser
-    }
 
     #[test]
     fn parse_function_params() {
@@ -145,5 +151,23 @@ mod test {
 
         let params = function.parameters().collect::<Vec<_>>();
         assert_eq!(params.len(), 2);
+
+        let param = params[0].as_parameter().unwrap();
+        assert_eq!(param.title, "bar");
+        assert_eq!(param.the_type(), None);
+
+        let param = params[1].as_parameter().unwrap();
+        assert_eq!(param.title, "baz");
+        let the_type = param.the_type();
+        assert_eq!(
+            the_type.unwrap().as_type().unwrap(),
+            &Type::BuiltIn("int".to_owned())
+        );
+
+        let return_type = function.return_type().unwrap();
+        assert_eq!(
+            return_type.as_type().unwrap(),
+            &Type::BuiltIn("bool".to_owned())
+        );
     }
 }

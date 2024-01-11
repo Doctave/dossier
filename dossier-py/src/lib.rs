@@ -2,8 +2,9 @@ mod class;
 mod function;
 mod parameter;
 mod symbol;
+mod types;
 
-use dossier_core::tree_sitter::{Node, Parser};
+use dossier_core::tree_sitter::Node;
 use dossier_core::Result;
 
 use std::path::{Path, PathBuf};

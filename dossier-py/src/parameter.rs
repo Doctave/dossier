@@ -2,6 +2,7 @@ use dossier_core::{serde_json::json, tree_sitter::Node, Context, Entity, Result}
 
 use crate::{
     symbol::{Location, ParseSymbol, Symbol, SymbolContext, SymbolKind},
+    types::Type,
     ParserContext,
 };
 
@@ -15,6 +16,11 @@ pub(crate) struct Parameter {
 impl Parameter {
     pub fn as_entity(&self, loc: &Location, context: Option<&SymbolContext>) -> Entity {
         unimplemented!()
+    }
+
+    #[cfg(test)]
+    pub fn the_type(&self) -> Option<&Symbol> {
+        self.members.iter().find(|s| s.as_type().is_some())
     }
 }
 
@@ -47,7 +53,8 @@ impl ParseSymbol for Parameter {
             let mut cursor = node.walk();
             cursor.goto_first_child();
 
-            let title = cursor.node()
+            let title = cursor
+                .node()
                 .utf8_text(ctx.code().as_bytes())
                 .unwrap()
                 .to_owned();
@@ -56,6 +63,9 @@ impl ParseSymbol for Parameter {
 
             if let Some(type_node) = node.child_by_field_name("type") {
                 // TODO
+                if Type::matches_node(type_node) {
+                    members.push(Type::parse_symbol(type_node, ctx)?);
+                }
             }
 
             Ok(Symbol::new(
