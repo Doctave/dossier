@@ -59,10 +59,18 @@ impl Symbol {
 
     pub fn as_entity(&self) -> Entity {
         match &self.kind {
-            SymbolKind::Class(s) => s.as_entity(&self.loc, self.context.as_ref()),
-            SymbolKind::Function(s) => s.as_entity(&self.loc, self.context.as_ref()),
-            SymbolKind::Parameter(s) => s.as_entity(&self.loc, self.context.as_ref()),
-            SymbolKind::Type(s) => s.as_entity(&self.loc, self.context.as_ref()),
+            SymbolKind::Class(s) => {
+                s.as_entity(&self.loc, self.fqn.as_deref(), self.context.as_ref())
+            }
+            SymbolKind::Function(s) => {
+                s.as_entity(&self.loc, self.fqn.as_deref(), self.context.as_ref())
+            }
+            SymbolKind::Parameter(s) => {
+                s.as_entity(&self.loc, self.fqn.as_deref(), self.context.as_ref())
+            }
+            SymbolKind::Type(s) => {
+                s.as_entity(&self.loc, self.fqn.as_deref(), self.context.as_ref())
+            }
         }
     }
 
@@ -125,4 +133,16 @@ pub(crate) enum SymbolContext {
     Method,
     Parameter,
     ReturnType,
+}
+
+impl SymbolContext {
+    pub fn to_string(&self) -> String {
+        use SymbolContext::*;
+        match self {
+            Method => "method",
+            Parameter => "parameter",
+            ReturnType => "return_type",
+        }
+        .to_owned()
+    }
 }

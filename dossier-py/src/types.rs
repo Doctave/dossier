@@ -1,4 +1,4 @@
-use dossier_core::{Entity, Result};
+use dossier_core::{serde_json::json, Entity, Result};
 
 use crate::{
     symbol::{Location, ParseSymbol, Symbol, SymbolContext, SymbolKind},
@@ -12,8 +12,26 @@ pub(crate) enum Type {
 }
 
 impl Type {
-    pub fn as_entity(&self, _loc: &Location, _context: Option<&SymbolContext>) -> Entity {
-        unimplemented!()
+    pub fn as_entity(
+        &self,
+        loc: &Location,
+        fqn: Option<&str>,
+        context: Option<&SymbolContext>,
+    ) -> Entity {
+        Entity {
+            title: self.identifier().map(|i| i.to_owned()),
+            description: String::new(),
+            kind: "type".to_owned(),
+            identity: match fqn {
+                Some(f) => dossier_core::Identity::FQN(f.to_owned()),
+                None => dossier_core::Identity::Anonymous
+            },
+            members: vec![],
+            member_context: context.map(|c| c.to_string()),
+            language: crate::LANGUAGE.to_owned(),
+            source: loc.as_source(),
+            meta: json!({}),
+        }
     }
 
     pub fn identifier(&self) -> Option<&str> {

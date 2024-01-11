@@ -19,14 +19,19 @@ impl Class {
         self.members.iter().filter(|s| s.as_function().is_some())
     }
 
-    pub fn as_entity(&self, loc: &Location, _context: Option<&SymbolContext>) -> Entity {
+    pub fn as_entity(
+        &self,
+        loc: &Location,
+        fqn: Option<&str>,
+        context: Option<&SymbolContext>,
+    ) -> Entity {
         Entity {
             title: Some(self.title.to_owned()),
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "class".to_owned(),
-            identity: dossier_core::Identity::FQN("TODO".to_owned()),
+            identity: dossier_core::Identity::FQN(fqn.expect("class without FQN").to_owned()),
             members: self.members.iter().map(|s| s.as_entity()).collect(),
-            member_context: None,
+            member_context: context.map(|c| c.to_string()),
             language: crate::LANGUAGE.to_owned(),
             source: loc.as_source(),
             meta: json!({}),

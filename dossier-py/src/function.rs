@@ -15,12 +15,19 @@ pub(crate) struct Function {
 }
 
 impl Function {
-    pub fn as_entity(&self, loc: &Location, context: Option<&SymbolContext>) -> Entity {
+    pub fn as_entity(
+        &self,
+        loc: &Location,
+        fqn: Option<&str>,
+        context: Option<&SymbolContext>,
+    ) -> Entity {
         Entity {
             title: Some(self.title.to_owned()),
             description: self.documentation.as_deref().unwrap_or_default().to_owned(),
             kind: "function".to_owned(),
-            identity: dossier_core::Identity::FQN("TODO".to_owned()),
+            identity: dossier_core::Identity::FQN(
+                fqn.expect("function or method without FQN").to_owned(),
+            ),
             members: vec![],
             member_context: context.map(|_| "method".to_owned()),
             language: crate::LANGUAGE.to_owned(),
