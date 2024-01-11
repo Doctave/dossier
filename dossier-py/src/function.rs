@@ -1,4 +1,4 @@
-use dossier_core::{serde_json::json, tree_sitter::Node, Context, Entity, Result};
+use dossier_core::{serde_json::json, tree_sitter::Node, Entity, Result};
 
 use crate::{
     parameter::Parameter,
@@ -62,19 +62,24 @@ impl ParseSymbol for Function {
             .to_owned();
 
         if let Some(parameters_node) = node.child_by_field_name("parameters") {
+            ctx.push_context(SymbolContext::Parameter);
             parse_parameters(&parameters_node, &mut members, ctx)?;
+            ctx.pop_context();
         }
 
         if let Some(return_type_node) = node.child_by_field_name("return_type") {
+            ctx.push_context(SymbolContext::ReturnType);
             if Type::matches_node(return_type_node) {
                 let symbol = Type::parse_symbol(return_type_node, ctx)?;
                 members.push(symbol);
             }
+            ctx.pop_context();
         }
 
         let documentation = find_docs(&node, ctx);
 
-        Ok(Symbol::new(
+        Ok(Symbol::in_context(
+            ctx,
             SymbolKind::Function(Function {
                 title,
                 documentation,
@@ -129,6 +134,7 @@ mod test {
     use crate::types::Type;
 
     use super::*;
+    use crate::symbol::SymbolContext;
     use indoc::indoc;
     use std::path::Path;
 
@@ -153,10 +159,12 @@ mod test {
         assert_eq!(params.len(), 2);
 
         let param = params[0].as_parameter().unwrap();
+        assert_eq!(params[0].context, Some(SymbolContext::Parameter));
         assert_eq!(param.title, "bar");
         assert_eq!(param.the_type(), None);
 
         let param = params[1].as_parameter().unwrap();
+        assert_eq!(params[1].context, Some(SymbolContext::Parameter));
         assert_eq!(param.title, "baz");
         let the_type = param.the_type();
         assert_eq!(
@@ -165,6 +173,7 @@ mod test {
         );
 
         let return_type = function.return_type().unwrap();
+        assert_eq!(return_type.context, Some(SymbolContext::ReturnType));
         assert_eq!(
             return_type.as_type().unwrap(),
             &Type::BuiltIn("bool".to_owned())

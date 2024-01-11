@@ -39,7 +39,8 @@ impl ParseSymbol for Parameter {
         if node.kind() == "identifier" {
             let title = node.utf8_text(ctx.code().as_bytes()).unwrap().to_owned();
 
-            Ok(Symbol::new(
+            Ok(Symbol::in_context(
+                ctx,
                 SymbolKind::Parameter(Parameter {
                     title,
                     documentation: None,
@@ -68,7 +69,8 @@ impl ParseSymbol for Parameter {
                 }
             }
 
-            Ok(Symbol::new(
+            Ok(Symbol::in_context(
+                ctx,
                 SymbolKind::Parameter(Parameter {
                     title,
                     documentation: None,

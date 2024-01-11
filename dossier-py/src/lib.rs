@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use class::Class;
 use function::Function;
-use symbol::{ParseSymbol, Symbol};
+use symbol::{ParseSymbol, Symbol, SymbolContext};
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PythonParser {}
@@ -102,11 +102,12 @@ fn handle_node(node: Node, out: &mut Vec<Symbol>, ctx: &mut ParserContext) -> Re
 pub(crate) struct ParserContext<'a> {
     pub file: &'a Path,
     pub code: &'a str,
+    symbol_context: Vec<SymbolContext>,
 }
 
 impl<'a> ParserContext<'a> {
     fn new(file: &'a Path, code: &'a str) -> Self {
-        Self { file, code }
+        Self { file, code, symbol_context: vec![] }
     }
 
     fn file(&self) -> &Path {
@@ -116,6 +117,19 @@ impl<'a> ParserContext<'a> {
     fn code(&self) -> &str {
         self.code.clone()
     }
+
+    fn push_context(&mut self, ctx: SymbolContext) {
+        self.symbol_context.push(ctx)
+    }
+
+    fn pop_context(&mut self) -> Option<SymbolContext> {
+        self.symbol_context.pop()
+    }
+
+    fn symbol_context(&self) -> Option<SymbolContext> {
+        self.symbol_context.last().copied()
+    }
+
 }
 
 mod helpers {

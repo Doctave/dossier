@@ -44,12 +44,10 @@ pub(crate) struct Symbol {
 }
 
 impl Symbol {
-    pub fn new(kind: SymbolKind, loc: Location) -> Self {
-        Symbol {
-            kind,
-            loc,
-            context: None,
-        }
+    pub fn in_context(ctx: &ParserContext, kind: SymbolKind, loc: Location) -> Self {
+        let context = ctx.symbol_context();
+
+        Symbol { kind, loc, context }
     }
 
     pub fn as_entity(&self) -> Entity {
@@ -102,7 +100,9 @@ pub(crate) enum SymbolKind {
     Type(crate::types::Type),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum SymbolContext {
     Method,
+    Parameter,
+    ReturnType,
 }

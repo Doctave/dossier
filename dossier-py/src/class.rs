@@ -57,7 +57,8 @@ impl ParseSymbol for Class {
             parse_methods(&body, ctx, &mut members)?;
         }
 
-        Ok(Symbol::new(
+        Ok(Symbol::in_context(
+            ctx,
             SymbolKind::Class(Class {
                 title,
                 documentation,
@@ -74,9 +75,10 @@ fn parse_methods(node: &Node, ctx: &mut ParserContext, members: &mut Vec<Symbol>
 
     loop {
         if Function::matches_node(cursor.node()) {
-            let mut method = Function::parse_symbol(cursor.node(), ctx)?;
-            method.context = Some(SymbolContext::Method);
+            ctx.push_context(SymbolContext::Method);
+            let method = Function::parse_symbol(cursor.node(), ctx)?;
             members.push(method);
+            ctx.pop_context();
         }
 
         if !cursor.goto_next_sibling() {
@@ -113,6 +115,7 @@ mod test {
     use super::*;
     use indoc::indoc;
     use std::path::Path;
+    use crate::symbol::SymbolContext;
 
     #[test]
     fn parse_methods() {
@@ -134,6 +137,7 @@ mod test {
         let class = symbol.as_class().unwrap();
 
         let method_symbol = class.methods().next().unwrap();
+        assert_eq!(method_symbol.context, Some(SymbolContext::Method));
         let method = method_symbol.as_function().unwrap();
         assert_eq!(method.title, "says");
         assert_eq!(

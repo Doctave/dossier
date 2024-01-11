@@ -12,7 +12,7 @@ pub(crate) enum Type {
 }
 
 impl Type {
-    pub fn as_entity(&self, loc: &Location, context: Option<&SymbolContext>) -> Entity {
+    pub fn as_entity(&self, _loc: &Location, _context: Option<&SymbolContext>) -> Entity {
         unimplemented!()
     }
 }
@@ -40,7 +40,8 @@ impl ParseSymbol for Type {
             Type::Identifier(title)
         };
 
-        Ok(Symbol::new(
+        Ok(Symbol::in_context(
+            ctx,
             SymbolKind::Type(out),
             Location::new(&node, ctx),
         ))
