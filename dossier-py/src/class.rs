@@ -54,7 +54,11 @@ impl ParseSymbol for Class {
         let mut members = vec![];
 
         if let Some(body) = node.child_by_field_name("body") {
+            ctx.push_context(SymbolContext::Method);
+            ctx.push_fqn(&title);
             parse_methods(&body, ctx, &mut members)?;
+            ctx.pop_fqn();
+            ctx.pop_context();
         }
 
         Ok(Symbol::in_context(
@@ -75,10 +79,8 @@ fn parse_methods(node: &Node, ctx: &mut ParserContext, members: &mut Vec<Symbol>
 
     loop {
         if Function::matches_node(cursor.node()) {
-            ctx.push_context(SymbolContext::Method);
             let method = Function::parse_symbol(cursor.node(), ctx)?;
             members.push(method);
-            ctx.pop_context();
         }
 
         if !cursor.goto_next_sibling() {
@@ -113,9 +115,9 @@ fn find_docs(node: &Node, ctx: &ParserContext) -> Option<String> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::symbol::SymbolContext;
     use indoc::indoc;
     use std::path::Path;
-    use crate::symbol::SymbolContext;
 
     #[test]
     fn parse_methods() {
@@ -134,10 +136,12 @@ mod test {
         assert!(Class::matches_node(cursor.node()));
 
         let symbol = Class::parse_symbol(cursor.node(), &mut ctx).unwrap();
+        assert_eq!(symbol.fqn.as_deref(), Some("test.py::PyClass"));
         let class = symbol.as_class().unwrap();
 
         let method_symbol = class.methods().next().unwrap();
         assert_eq!(method_symbol.context, Some(SymbolContext::Method));
+        assert_eq!(method_symbol.fqn.as_deref(), Some("test.py::PyClass::says"));
         let method = method_symbol.as_function().unwrap();
         assert_eq!(method.title, "says");
         assert_eq!(

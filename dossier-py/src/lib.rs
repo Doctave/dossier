@@ -103,33 +103,58 @@ pub(crate) struct ParserContext<'a> {
     pub file: &'a Path,
     pub code: &'a str,
     symbol_context: Vec<SymbolContext>,
+    fqn_parts: Vec<String>,
 }
 
 impl<'a> ParserContext<'a> {
-    fn new(file: &'a Path, code: &'a str) -> Self {
-        Self { file, code, symbol_context: vec![] }
+    pub fn new(file: &'a Path, code: &'a str) -> Self {
+        Self {
+            file,
+            code,
+            symbol_context: vec![],
+            fqn_parts: vec![],
+        }
     }
 
-    fn file(&self) -> &Path {
+    pub fn file(&self) -> &Path {
         self.file.clone()
     }
 
-    fn code(&self) -> &str {
+    pub fn code(&self) -> &str {
         self.code.clone()
     }
 
-    fn push_context(&mut self, ctx: SymbolContext) {
+    pub fn push_context(&mut self, ctx: SymbolContext) {
         self.symbol_context.push(ctx)
     }
 
-    fn pop_context(&mut self) -> Option<SymbolContext> {
+    pub fn pop_context(&mut self) -> Option<SymbolContext> {
         self.symbol_context.pop()
     }
 
-    fn symbol_context(&self) -> Option<SymbolContext> {
+    pub fn symbol_context(&self) -> Option<SymbolContext> {
         self.symbol_context.last().copied()
     }
 
+    pub fn construct_fqn(&self, identifier: &str) -> String {
+        let mut out = vec![];
+        let file_part = format!("{}", self.file.display());
+        out.push(file_part.as_str());
+        for part in &self.fqn_parts {
+            out.push(part)
+        }
+        out.push(identifier);
+
+        out.join("::")
+    }
+
+    fn push_fqn(&mut self, identifier: &str) {
+        self.fqn_parts.push(identifier.to_owned());
+    }
+
+    fn pop_fqn(&mut self) -> Option<String> {
+        self.fqn_parts.pop()
+    }
 }
 
 mod helpers {

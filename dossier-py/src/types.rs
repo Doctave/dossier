@@ -15,6 +15,13 @@ impl Type {
     pub fn as_entity(&self, _loc: &Location, _context: Option<&SymbolContext>) -> Entity {
         unimplemented!()
     }
+
+    pub fn identifier(&self) -> Option<&str> {
+        match self {
+            Type::BuiltIn(s) => Some(s),
+            Type::Identifier(s) => Some(s),
+        }
+    }
 }
 
 impl ParseSymbol for Type {

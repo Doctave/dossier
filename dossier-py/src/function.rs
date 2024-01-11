@@ -63,7 +63,9 @@ impl ParseSymbol for Function {
 
         if let Some(parameters_node) = node.child_by_field_name("parameters") {
             ctx.push_context(SymbolContext::Parameter);
+            ctx.push_fqn(&title);
             parse_parameters(&parameters_node, &mut members, ctx)?;
+            ctx.pop_fqn();
             ctx.pop_context();
         }
 
@@ -151,6 +153,7 @@ mod test {
         cursor.goto_first_child();
 
         let symbol = Function::parse_symbol(cursor.node(), &mut ctx).unwrap();
+        assert_eq!(symbol.fqn.as_deref(), Some("test.py::foo"));
 
         let function = symbol.as_function().unwrap();
         assert_eq!(function.title, "foo");
@@ -160,11 +163,13 @@ mod test {
 
         let param = params[0].as_parameter().unwrap();
         assert_eq!(params[0].context, Some(SymbolContext::Parameter));
+        assert_eq!(params[0].fqn.as_deref(), Some("test.py::foo::bar"));
         assert_eq!(param.title, "bar");
         assert_eq!(param.the_type(), None);
 
         let param = params[1].as_parameter().unwrap();
         assert_eq!(params[1].context, Some(SymbolContext::Parameter));
+        assert_eq!(params[1].fqn.as_deref(), Some("test.py::foo::baz"));
         assert_eq!(param.title, "baz");
         let the_type = param.the_type();
         assert_eq!(

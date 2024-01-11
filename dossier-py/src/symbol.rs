@@ -39,6 +39,7 @@ impl Location {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Symbol {
     pub kind: SymbolKind,
+    pub fqn: Option<String>,
     pub loc: Location,
     pub context: Option<SymbolContext>,
 }
@@ -46,8 +47,14 @@ pub(crate) struct Symbol {
 impl Symbol {
     pub fn in_context(ctx: &ParserContext, kind: SymbolKind, loc: Location) -> Self {
         let context = ctx.symbol_context();
+        let fqn = kind.identifier().map(|i| ctx.construct_fqn(i));
 
-        Symbol { kind, loc, context }
+        Symbol {
+            kind,
+            loc,
+            context,
+            fqn,
+        }
     }
 
     pub fn as_entity(&self) -> Entity {
@@ -98,6 +105,19 @@ pub(crate) enum SymbolKind {
     Function(crate::function::Function),
     Parameter(crate::parameter::Parameter),
     Type(crate::types::Type),
+}
+
+impl SymbolKind {
+    fn identifier(&self) -> Option<&str> {
+        use SymbolKind::*;
+
+        match &self {
+            Class(crate::class::Class { title, .. }) => Some(&title),
+            Function(crate::function::Function { title, .. }) => Some(&title),
+            Parameter(crate::parameter::Parameter { title, .. }) => Some(&title),
+            Type(t) => t.identifier(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
