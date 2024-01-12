@@ -85,6 +85,8 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
         .unwrap()
         .to_owned();
 
+    ctx.push_fqn(&identifier);
+
     if let Some(value) = node.child_by_field_name("value") {
         children.push(types::parse(&value, ctx)?);
     }
@@ -103,6 +105,8 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             }
         }
     }
+
+    ctx.pop_fqn();
 
     Ok(Symbol::in_context(
         ctx,
@@ -206,6 +210,8 @@ mod test {
 
         let var = type_variables[0];
         assert_eq!(var.kind.as_type_variable().unwrap().identifier, "T");
+
+        assert_eq!(var.fqn, Some("index.ts::Example::T".to_owned()));
     }
 
     #[test]
@@ -231,5 +237,30 @@ mod test {
             symbol.kind.as_type_alias().unwrap().documentation,
             Some("This is a type alias".to_owned())
         );
+    }
+
+    #[test]
+    fn nested_fqn() {
+        let code = indoc! {r#"
+        type Foo = {
+            bar: string
+        };
+        "#};
+
+        let tree = init_parser().parse(code, None).unwrap();
+        let mut cursor = tree.root_node().walk();
+        walk_tree_to_alias(&mut cursor);
+
+        let symbol = parse(
+            &cursor.node(),
+            &mut ParserContext::new(Path::new("index.ts"), code),
+        )
+        .unwrap();
+
+        let alias = symbol.kind.as_type_alias().unwrap();
+        let obj = alias.the_type().kind.as_type().unwrap();
+        let prop = obj.children().first().unwrap();
+
+        assert_eq!(prop.fqn, Some("index.ts::Foo::bar".to_owned()));
     }
 }
