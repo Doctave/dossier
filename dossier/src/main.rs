@@ -1,35 +1,34 @@
-use std::collections::VecDeque;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::time::Instant;
 
 use dossier_core::DocsParser;
 
-use glob::glob;
+use clap::Parser;
+
+/// Dossier: A multi-language soure code and docstring parser
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Input files to parse
+    #[arg(required = true)]
+    files: Vec<PathBuf>,
+}
 
 fn main() {
+    let args = Args::parse_from(wild::args());
+
     let start = Instant::now();
-    let mut files: VecDeque<String> = std::env::args().map(String::from).collect();
-    // Remove binary name
-    files.pop_front();
 
     let mut input_files = vec![];
     let mut out = vec![];
 
-    for file in files {
-        for entry in glob(&file).expect("Failed to read glob pattern") {
-            match entry {
-                Ok(path) => {
-                    let file = PathBuf::from(&path);
-                    if file.is_dir() {
-                        continue;
-                    }
-
-                    input_files.push(file);
-                }
-                Err(e) => println!("{:?}", e),
-            }
+    for file in args.files {
+        if file.is_dir() {
+            continue;
         }
+
+        input_files.push(file);
     }
 
     let typescript_files = input_files
