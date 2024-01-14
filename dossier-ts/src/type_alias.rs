@@ -40,12 +40,7 @@ impl TypeAlias {
                 .collect::<Vec<_>>(),
             member_context: symbol_context.map(|sc| sc.to_string()),
             language: crate::LANGUAGE.to_owned(),
-            source: dossier_core::Source {
-                file: source.file.to_owned(),
-                start_offset_bytes: source.start_offset_bytes,
-                end_offset_bytes: source.end_offset_bytes,
-                repository: None,
-            },
+            source: source.as_entity_source(),
             meta: json!({}),
         }
     }
@@ -116,11 +111,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             exported: is_exported(node),
             documentation: find_docs(node, ctx.code).map(process_comment),
         }),
-        Source {
-            file: ctx.file.to_owned(),
-            start_offset_bytes: node.start_byte(),
-            end_offset_bytes: node.end_byte(),
-        },
+        Source::for_node(node, ctx),
     ))
 }
 

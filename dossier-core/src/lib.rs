@@ -51,7 +51,6 @@ impl Identity {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
 pub struct Entity {
     /// The title for the entity. Usually the name of the class/function/module, etc.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -89,14 +88,27 @@ fn value_is_empty(value: &serde_json::Value) -> bool {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
+/// Position in a source file.
+///
+/// Contains the row and column number, as well as the byte offset from the start of the file,
+/// since different situations may call for one of the other.
+pub struct Position {
+    /// The line number of the entity in the source file
+    pub row: usize,
+    /// The column number on the line
+    pub column: usize,
+    /// Byte offset from the start of the file for the entity
+    pub byte_offset: usize,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
 /// Metadata about the source of an `Entity`
 pub struct Source {
     pub file: PathBuf,
-    /// Starting offset of the entity in the source file in bytes
-    pub start_offset_bytes: usize,
-    /// Ending offset of the entity in the source file in bytes
-    pub end_offset_bytes: usize,
+    /// Start position in the source file
+    pub start: Position,
+    /// End position in the source file
+    pub end: Position,
     /// Optional: Git repository URL for the file
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,

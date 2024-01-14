@@ -126,11 +126,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
             readonly: is_readonly(node),
             optional: is_optional(node),
         }),
-        Source {
-            file: ctx.file.to_owned(),
-            start_offset_bytes: node.start_byte(),
-            end_offset_bytes: node.end_byte(),
-        },
+        Source::for_node(node, ctx),
     ))
 }
 

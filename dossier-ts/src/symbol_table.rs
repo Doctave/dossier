@@ -375,6 +375,8 @@ impl SymbolTable {
 
 #[cfg(test)]
 mod test {
+    use dossier_core::Position;
+
     use super::*;
     use crate::symbol::{Source, SymbolKind};
 
@@ -391,8 +393,16 @@ mod test {
             }),
             source: Source {
                 file: PathBuf::from("foo.ts"),
-                start_offset_bytes: 0,
-                end_offset_bytes: 0,
+                start: Position {
+                    row: 0,
+                    column: 0,
+                    byte_offset: 0,
+                },
+                end: Position {
+                    row: 0,
+                    column: 0,
+                    byte_offset: 0,
+                },
             },
             fqn: Some("foo.ts::foo".to_owned()),
             context: None,
@@ -429,8 +439,16 @@ mod test {
             }),
             source: Source {
                 file: PathBuf::from("foo.ts"),
-                start_offset_bytes: 0,
-                end_offset_bytes: 0,
+                start: Position {
+                    row: 0,
+                    column: 0,
+                    byte_offset: 0,
+                },
+                end: Position {
+                    row: 0,
+                    column: 0,
+                    byte_offset: 0,
+                },
             },
             fqn: Some("foo.ts::foo".to_owned()),
             context: None,
@@ -456,8 +474,16 @@ mod test {
             }),
             source: Source {
                 file: PathBuf::from("foo.ts"),
-                start_offset_bytes: 0,
-                end_offset_bytes: 0,
+                start: Position {
+                    row: 0,
+                    column: 0,
+                    byte_offset: 0,
+                },
+                end: Position {
+                    row: 0,
+                    column: 0,
+                    byte_offset: 0,
+                },
             },
             fqn: Some("foo.ts::foo".to_owned()),
             context: None,
@@ -486,8 +512,16 @@ mod test {
             }),
             source: Source {
                 file: PathBuf::from("foo.ts"),
-                start_offset_bytes: 0,
-                end_offset_bytes: 0,
+                start: Position {
+                    row: 0,
+                    column: 0,
+                    byte_offset: 0,
+                },
+                end: Position {
+                    row: 0,
+                    column: 0,
+                    byte_offset: 0,
+                },
             },
             fqn: Some("foo.ts::foo".to_owned()),
             context: None,

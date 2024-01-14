@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use dossier_core::Entity;
+use dossier_core::{Entity, Position};
 use std::sync::atomic::AtomicUsize;
 use tree_sitter::Node;
 
@@ -307,27 +307,32 @@ impl<'a> Iterator for SymbolIterator<'a> {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Source {
     pub file: PathBuf,
-    pub start_offset_bytes: usize,
-    pub end_offset_bytes: usize,
+    pub start: Position,
+    pub end: Position,
 }
 
 impl Source {
     pub fn for_node(node: &Node, ctx: &ParserContext) -> Self {
-        let offset_start_bytes = node.start_byte();
-        let offset_end_bytes = node.end_byte();
-
         Self {
             file: ctx.file.to_owned(),
-            start_offset_bytes: offset_start_bytes,
-            end_offset_bytes: offset_end_bytes,
+            start: Position {
+                row: node.start_position().row,
+                column: node.start_position().column,
+                byte_offset: node.start_byte(),
+            },
+            end: Position {
+                row: node.end_position().row,
+                column: node.end_position().column,
+                byte_offset: node.end_byte(),
+            },
         }
     }
 
     pub fn as_entity_source(&self) -> dossier_core::Source {
         dossier_core::Source {
             file: self.file.to_owned(),
-            start_offset_bytes: self.start_offset_bytes,
-            end_offset_bytes: self.end_offset_bytes,
+            start: self.start.clone(),
+            end: self.end.clone(),
             repository: None,
         }
     }
