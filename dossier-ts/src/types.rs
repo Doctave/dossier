@@ -33,7 +33,7 @@ pub(crate) enum Type {
     Intersection {
         members: Vec<Symbol>,
     },
-    GenericType {
+    Generic {
         identifier: String,
         members: Vec<Symbol>,
     },
@@ -49,6 +49,7 @@ pub(crate) enum Type {
     Rest {
         members: Vec<Symbol>,
     },
+    #[allow(clippy::enum_variant_names)]
     TypeOf(String),
     /// TODO(Nik): Parse the template literal and access its members
     /// Tree-sitter parses the literal into its parts, so we can
@@ -73,7 +74,7 @@ impl Type {
         match self {
             Type::Predefined(type_name) => Some(type_name),
             Type::Identifier(identifier, _) => Some(identifier),
-            Type::GenericType { identifier, .. } => Some(identifier),
+            Type::Generic { identifier, .. } => Some(identifier),
             Type::KeyOf(_symbol) => None,
             Type::ReadOnly(_symbol) => None,
             Type::Lookup(_symbol) => None,
@@ -93,7 +94,7 @@ impl Type {
             } => fields,
             Type::Union { members } => members,
             Type::Conditional { members } => members,
-            Type::GenericType { members, .. } => members,
+            Type::Generic { members, .. } => members,
             Type::Array { members, .. } => members,
             Type::Tuple { members, .. } => members,
             Type::Function { members, .. } => members,
@@ -121,7 +122,7 @@ impl Type {
             } => fields,
             Type::Union { members } => members,
             Type::Conditional { members } => members,
-            Type::GenericType { members, .. } => members,
+            Type::Generic { members, .. } => members,
             Type::Array { members, .. } => members,
             Type::Tuple { members, .. } => members,
             Type::Function { members, .. } => members,
@@ -364,7 +365,7 @@ impl Type {
                     members: members.iter().map(|s| s.as_entity()).collect(),
                 }
             }
-            Type::GenericType {
+            Type::Generic {
                 identifier,
                 members,
             } => {
@@ -487,7 +488,7 @@ impl Type {
     #[cfg(test)]
     pub fn union_left(&self) -> Option<&Symbol> {
         match self {
-            Type::Union { members } => members.get(0),
+            Type::Union { members } => members.first(),
             _ => None,
         }
     }
@@ -503,7 +504,7 @@ impl Type {
     #[cfg(test)]
     pub fn conditional_left(&self) -> Option<&Symbol> {
         match self {
-            Type::Conditional { members } => members.get(0),
+            Type::Conditional { members } => members.first(),
             _ => None,
         }
     }
@@ -535,7 +536,7 @@ impl Type {
     #[cfg(test)]
     pub fn intersection_left(&self) -> Option<&Symbol> {
         match self {
-            Type::Intersection { members } => members.get(0),
+            Type::Intersection { members } => members.first(),
             _ => None,
         }
     }
@@ -856,7 +857,7 @@ pub(crate) fn parse(node: &Node, ctx: &mut ParserContext) -> Result<Symbol> {
 
             Ok(Symbol::in_context(
                 ctx,
-                SymbolKind::Type(Type::GenericType {
+                SymbolKind::Type(Type::Generic {
                     identifier,
                     members,
                 }),
@@ -1249,7 +1250,7 @@ mod test {
 
         assert_eq!(type_def.identifier().unwrap(), "Promise");
         assert_eq!(type_def.children().len(), 1);
-        assert!(matches!(type_def, Type::GenericType { .. }));
+        assert!(matches!(type_def, Type::Generic { .. }));
 
         let arg = type_def.children()[0].kind.as_type().unwrap();
         assert_eq!(arg, &Type::Identifier("Example".to_owned(), None));

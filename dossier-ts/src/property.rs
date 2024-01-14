@@ -60,7 +60,7 @@ impl Property {
 
     #[cfg(test)]
     pub fn the_type(&self) -> Option<&Symbol> {
-        self.children.get(0)
+        self.children.first()
     }
 }
 

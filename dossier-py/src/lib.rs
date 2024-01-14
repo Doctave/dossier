@@ -117,11 +117,11 @@ impl<'a> ParserContext<'a> {
     }
 
     pub fn file(&self) -> &Path {
-        self.file.clone()
+        self.file
     }
 
     pub fn code(&self) -> &str {
-        self.code.clone()
+        self.code
     }
 
     pub fn push_context(&mut self, ctx: SymbolContext) {
@@ -220,7 +220,7 @@ mod test {
         let ctx = ParserContext::new(Path::new("main.py"), source);
         let symbols = parse_file(ctx).unwrap();
 
-        let class = symbols.get(0).unwrap().as_class().unwrap();
+        let class = symbols.first().unwrap().as_class().unwrap();
         assert_eq!(class.title, "PyClass");
         assert_eq!(
             class.documentation.as_deref(),
@@ -242,7 +242,7 @@ mod test {
         let ctx = ParserContext::new(Path::new("main.py"), source);
         let symbols = parse_file(ctx).unwrap();
 
-        let function = symbols.get(0).unwrap().as_function().unwrap();
+        let function = symbols.first().unwrap().as_function().unwrap();
         assert_eq!(function.title, "complex");
         assert_eq!(
             function.documentation.as_deref(),

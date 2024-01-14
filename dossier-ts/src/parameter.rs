@@ -49,7 +49,7 @@ impl Parameter {
 
     #[cfg(test)]
     pub fn parameter_type(&self) -> Option<&Symbol> {
-        self.children.get(0)
+        self.children.first()
     }
 }
 
