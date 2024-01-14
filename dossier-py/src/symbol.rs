@@ -128,9 +128,9 @@ impl SymbolKind {
         use SymbolKind::*;
 
         match &self {
-            Class(crate::class::Class { title, .. }) => Some(&title),
-            Function(crate::function::Function { title, .. }) => Some(&title),
-            Parameter(crate::parameter::Parameter { title, .. }) => Some(&title),
+            Class(crate::class::Class { title, .. }) => Some(title),
+            Function(crate::function::Function { title, .. }) => Some(title),
+            Parameter(crate::parameter::Parameter { title, .. }) => Some(title),
             Type(t) => t.identifier(),
         }
     }
@@ -143,14 +143,13 @@ pub(crate) enum SymbolContext {
     ReturnType,
 }
 
-impl SymbolContext {
-    pub fn to_string(&self) -> String {
+impl std::fmt::Display for SymbolContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use SymbolContext::*;
         match self {
-            Method => "method",
-            Parameter => "parameter",
-            ReturnType => "return_type",
+            Method => write!(f, "method"),
+            Parameter => write!(f, "parameter"),
+            ReturnType => write!(f, "return_type"),
         }
-        .to_owned()
     }
 }
