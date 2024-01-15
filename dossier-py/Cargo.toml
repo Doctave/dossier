@@ -1,6 +1,6 @@
 [package]
 name = "dossier-py"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 description = "Python support for Dossier"
 license = "MPL-2.0"

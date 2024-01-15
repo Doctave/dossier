@@ -159,7 +159,7 @@ dependencies = [
 
 [[package]]
 name = "dossier"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "clap",
  "dossier-core",
@@ -183,7 +183,7 @@ dependencies = [
 
 [[package]]
 name = "dossier-py"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "cc",
  "dossier-core",
@@ -195,7 +195,7 @@ dependencies = [
 
 [[package]]
 name = "dossier-ts"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "cc",
  "dossier-core",

@@ -1,6 +1,6 @@
 [package]
 name = "dossier"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 description = "A multi-language source code and docstrings parser"
 license = "MPL-2.0"
@@ -11,8 +11,8 @@ repository = "https://github.com/Doctave/dossier"
 [dependencies]
 serde_json = "1.0"
 dossier-core = { path = "../dossier-core", version="0.0.2" }
-dossier-ts = { path = "../dossier-ts", version="0.0.3" }
-dossier-py = { path = "../dossier-py", version="0.0.3" }
+dossier-ts = { path = "../dossier-ts", version="0.0.4" }
+dossier-py = { path = "../dossier-py", version="0.0.4" }
 pretty-duration = "0.1.1"
 clap = { version = "4.4.16", features = ["derive"] }
 wild = "2.2.0"
