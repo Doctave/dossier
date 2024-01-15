@@ -172,7 +172,7 @@ dependencies = [
 
 [[package]]
 name = "dossier-core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "indexmap",
  "serde",
@@ -183,7 +183,7 @@ dependencies = [
 
 [[package]]
 name = "dossier-py"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "cc",
  "dossier-core",
@@ -196,7 +196,7 @@ dependencies = [
 
 [[package]]
 name = "dossier-ts"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "cc",
  "dossier-core",
