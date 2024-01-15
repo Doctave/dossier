@@ -16,4 +16,4 @@ indoc = "2"
 rayon = "1.8.0"
 
 [build-dependencies]
-cc="*"
+cc = "1.0.83"
