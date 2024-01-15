@@ -1,3 +1,5 @@
+[![Dossier CI](https://github.com/Doctave/dossier/actions/workflows/CI.yaml/badge.svg)](https://github.com/Doctave/dossier/actions/workflows/CI.yaml)
+
 # Dossier, a multi-language source code and docstrings parser
 
 Dossier reads source code and generates JSON that describes the any interfaces, classes, functions and types found in it. It is built on the fantastic [tree-sitter](https://tree-sitter.github.io/tree-sitter/) library, and supports multiple languages.
@@ -9,6 +11,14 @@ The goal is to have one tool that can parse all kinds of languages and be used t
 [![Introduction to Dossier video](https://img.youtube.com/vi/kb1VRn0GIhA/0.jpg)](https://www.youtube.com/watch?v=kb1VRn0GIhA)
 
 This project is maintained by [Doctave](https://www.doctave.com).
+
+## Installation
+
+You can install Dossier with Rust's package manager, Cargo:
+
+```
+cargo install dossier
+```
 
 ## Features
 
@@ -46,6 +56,7 @@ function getUser(name: string): User {
 Dossier will give you JSON output describing the code:
 
 ```javascript
+$ dossier example.ts
 [
   {
     "title": "User",
@@ -68,8 +79,7 @@ Dossier will give you JSON output describing the code:
                 "description": "",
                 "kind": "predefined_type",
                 "fqn": "builtin::number",
-
-// ...clipped for brevity
+                ...
 ```
 
 ## Language Support
@@ -127,7 +137,7 @@ Here are some questions you may have, and hopefully a useful answer to match:
 
 This is probably correct in the literal case. Depending on the language, there may well be things Dossier will not be able to infer since it all it has is the tree-sitter AST and no access to the language runtime. A good example of this would be type inference, or resolving types that are computed from dynamic expressions.
 
-But you do not need to support 100% of a language to be a useful tool for e.g. creating documentation for a public API of a library. Our task is made simpler by the fact that Dossier only cares about declarations and signatures, which is a much small subset of a full language.
+But you do not need to support 100% of a language to be a useful tool for e.g. creating documentation for a public API of a library. Our task is made simpler by the fact that Dossier only cares about declarations and signatures, which is a much small subset of a full language. 
 
 Time will tell if these assumptions are correct.
 
