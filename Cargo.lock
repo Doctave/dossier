@@ -190,7 +190,6 @@ dependencies = [
  "indoc",
  "lazy_static",
  "tree-sitter",
- "tree-sitter-jsdoc",
  "tree-sitter-python",
 ]
 
@@ -204,7 +203,6 @@ dependencies = [
  "lazy_static",
  "rayon",
  "tree-sitter",
- "tree-sitter-jsdoc",
  "tree-sitter-typescript",
 ]
 
@@ -434,15 +432,6 @@ source = "git+https://github.com/tree-sitter/tree-sitter.git?rev=660481d#660481d
 dependencies = [
  "cc",
  "regex",
-]
-
-[[package]]
-name = "tree-sitter-jsdoc"
-version = "0.20.0"
-source = "git+https://github.com/tree-sitter/tree-sitter-jsdoc.git#d01984de49927c979b46ea5c01b78c8ddd79baf9"
-dependencies = [
- "cc",
- "tree-sitter",
 ]
 
 [[package]]
