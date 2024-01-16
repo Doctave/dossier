@@ -2,9 +2,11 @@
 
 # Dossier, a multi-language source code and docstrings parser
 
+![Turn source code into JSON](./assets/readme-header.png)
+
 Dossier reads source code and generates JSON that describes the any interfaces, classes, functions and types found in it. It is built on the fantastic [tree-sitter](https://tree-sitter.github.io/tree-sitter/) library, and supports multiple languages.
 
-The goal is to have one tool that can parse all kinds of languages and be used to generate documentation or analyse source code, or run checks as part of CI/CD.
+The goal is to have one tool that can parse all kinds of languages and be used to generate documentation, analyse source code, or run checks as part of CI/CD.
 
 🎬 _**Prefer a video explanation? Click below.**_
 
@@ -19,21 +21,9 @@ You can install Dossier with Rust's package manager, Cargo:
 ```
 cargo install dossier
 ```
+## Usage
 
-## Features
-
-- Parses language symbols (classes, types, interfaces, etc.) along with their docstrings
-- Multi-language (currently Typescript and Python)
-- Resolving type identifiers to their definitions, even across imports
-
-## Status
-
-Dossier is still alpha quality and pre 1.0. APIs may change and language implementation will have holes in them.
-We invite you to push the project forward by implementing a missing part of a language or by starting a new language implementation!
-
-## Example
-
-Given input like this:
+Given a file `example.ts` like this:
 
 ```typescript
 /**
@@ -53,14 +43,19 @@ function getUser(name: string): User {
 }
 ```
 
-Dossier will give you JSON output describing the code:
+Pass it as an argument to Dossier:
 
-```javascript
+```
 $ dossier example.ts
+```
+
+And get back JSON output describing the code:
+```javascript
+
 [
   {
     "title": "User",
-    "description": "A User in the system. This is enterprise software.",
+    "description": "A User in the system. This is **enterprise** software.",
     "kind": "type_alias",
     "fqn": "example.ts::User",
     "members": [
@@ -69,18 +64,20 @@ $ dossier example.ts
         "kind": "object",
         "members": [
           {
-            "title": "age",
-            "description": "",
-            "kind": "property",
-            "fqn": "example.ts::User::age",
-            "members": [
-              {
-                "title": "number",
-                "description": "",
-                "kind": "predefined_type",
-                "fqn": "builtin::number",
-                ...
+             ...
 ```
+
+## Features
+
+- Parses language symbols (classes, types, interfaces, etc.) along with their docstrings
+- Multi-language (currently Typescript and Python)
+- Resolving type identifiers to their definitions, even across imports
+
+## Status
+
+Dossier is still alpha quality and pre 1.0. APIs may change and language implementation will have holes in them.
+We invite you to push the project forward by implementing a missing part of a language or by starting a new language implementation!
+
 
 ## Language Support
 
@@ -137,7 +134,7 @@ Here are some questions you may have, and hopefully a useful answer to match:
 
 This is probably correct in the literal case. Depending on the language, there may well be things Dossier will not be able to infer since it all it has is the tree-sitter AST and no access to the language runtime. A good example of this would be type inference, or resolving types that are computed from dynamic expressions.
 
-But you do not need to support 100% of a language to be a useful tool for e.g. creating documentation for a public API of a library. Our task is made simpler by the fact that Dossier only cares about declarations and signatures, which is a much small subset of a full language. 
+But you do not need to support 100% of a language to be a useful tool for e.g. creating documentation for a public API of a library. Our task is made simpler by the fact that Dossier only cares about declarations and signatures, which is a much smaller subset of a full language. 
 
 Time will tell if these assumptions are correct.
 
@@ -147,7 +144,7 @@ What we believe is that there is value in having a single toolchain and standard
 
 At [Doctave](www.doctave.com), we often come across customers who want to include SDK documentation as part of their documentation. But different languages have very different ways of producing documentation. Integrating against Doxygen, JavaDoc, JsDoc, and the like is possible, but many such tools don't produce easily parseable output (e.g. Rustdoc).
 
-Our goal with Dossier is to have an open toolchain and standard that tools can integrate against not just for documentation, but all kinds of use cases from analysing source code to running automated checks. (Try piping the output of Dossier into [jq](https://jqlang.github.io/jq/)!)
+Our goal with Dossier is to have an open toolchain and standard that tools can integrate against not just for documentation, but all kinds of use cases. (Try piping the output of Dossier into [jq](https://jqlang.github.io/jq/)!)
 
 ### Is there prior art that has inspired Dossier?
 
